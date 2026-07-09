@@ -63,6 +63,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
   const [eAmount, setEAmount] = useState("");
   const [eCat, setECat] = useState("General");
   const [eDate, setEDate] = useState(new Date().toISOString().split("T")[0]);
+  const [ePaidBy, setEPaidBy] = useState<string>(userId);
   const [splitType, setSplitType] = useState<"equal"|"custom">("equal");
   const [customSplits, setCustomSplits] = useState<Record<string,string>>({});
 
@@ -104,12 +105,12 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
     setLoading(true);
     const amountNum = Number(eAmount);
     const { data: expense, error } = await supabase
-      .from("expenses").insert({ description: eDesc, amount: amountNum, category: eCat, date: eDate, paid_by: userId, group_id: activeGroupId }).select().single();
+      .from("expenses").insert({ description: eDesc, amount: amountNum, category: eCat, date: eDate, paid_by: ePaidBy, group_id: activeGroupId }).select().single();
     if (error || !expense) { setLoading(false); return; }
 
     const splits = splitType === "equal"
-      ? activeMembers.map(m => ({ expense_id: expense.id, user_id: m.user_id, amount_owed: parseFloat((amountNum / activeMembers.length).toFixed(2)), is_settled: m.user_id === userId }))
-      : activeMembers.map(m => ({ expense_id: expense.id, user_id: m.user_id, amount_owed: parseFloat(customSplits[m.user_id] || "0"), is_settled: m.user_id === userId }));
+      ? activeMembers.map(m => ({ expense_id: expense.id, user_id: m.user_id, amount_owed: parseFloat((amountNum / activeMembers.length).toFixed(2)), is_settled: m.user_id === ePaidBy }))
+      : activeMembers.map(m => ({ expense_id: expense.id, user_id: m.user_id, amount_owed: parseFloat(customSplits[m.user_id] || "0"), is_settled: m.user_id === ePaidBy }));
 
     await supabase.from("expense_splits").insert(splits);
 
@@ -131,7 +132,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
     }
 
     setExpenseSheet(false);
-    setEDesc(""); setEAmount(""); setECat("General"); setCustomSplits({});
+    setEDesc(""); setEAmount(""); setECat("General"); setCustomSplits({}); setEPaidBy(userId);
     setLoading(false);
     startTransition(() => router.refresh());
   };
@@ -209,7 +210,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
               <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
                 className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={() => setGroupSheet(false)} />
               <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}}
-                transition={{type:"spring",damping:20,stiffness:400}}
+                transition={{ duration: 0.15, ease: "easeOut" }}
                 className="fixed bottom-0 left-0 right-0 z-50 bottom-sheet bg-card pb-safe max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-border" /></div>
                 <div className="px-5 pb-6">
@@ -395,7 +396,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
             <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
               className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={() => setExpenseSheet(false)} />
             <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}}
-              transition={{type:"spring",damping:20,stiffness:400}}
+              transition={{ duration: 0.15, ease: "easeOut" }}
               className="fixed bottom-0 left-0 right-0 z-50 bottom-sheet bg-card pb-safe max-h-[92vh] overflow-y-auto">
               <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-border" /></div>
               <div className="px-5 pb-6">
@@ -423,6 +424,19 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                   <input id="group-expense-date" type="date" value={eDate} onChange={e => setEDate(e.target.value)}
                     className="w-full bg-background border border-border rounded-2xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" required />
 
+                  {/* Paid By selector */}
+                  <div>
+                    <p className="text-xs text-muted-foreground font-medium mb-2">Paid By</p>
+                    <div className="flex bg-muted p-1 rounded-2xl overflow-x-auto gap-1 hide-scrollbar">
+                      {activeMembers.map(m => (
+                        <button key={m.user_id} type="button" onClick={() => setEPaidBy(m.user_id)}
+                          className={`shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition-all ${ePaidBy === m.user_id ? "bg-card text-foreground card-shadow" : "text-muted-foreground"}`}>
+                          {m.user_id === userId ? "You" : m.profiles?.full_name?.split(" ")[0] || "Member"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Split toggle */}
                   <div>
                     <p className="text-xs text-muted-foreground font-medium mb-2">Split Method</p>
@@ -448,11 +462,11 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                         </p>
                         {splitType === "equal" ? (
                           <p className="text-sm font-bold text-primary">
-                            {eAmount ? fmt(Number(eAmount) / activeMembers.length) : "$0.00"}
+                            {eAmount ? fmt(Number(eAmount) / activeMembers.length) : "₹0.00"}
                           </p>
                         ) : (
                           <div className="relative w-24">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">$</span>
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">₹</span>
                             <input type="number" step="0.01" placeholder="0.00"
                               value={customSplits[member.user_id] || ""}
                               onChange={e => setCustomSplits(prev=>({...prev,[member.user_id]:e.target.value}))}

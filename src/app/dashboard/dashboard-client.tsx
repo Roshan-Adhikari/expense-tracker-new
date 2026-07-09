@@ -8,6 +8,7 @@ import {
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 
 interface Expense {
   id: string;
@@ -50,6 +51,17 @@ const CATEGORY_COLORS: Record<string, string> = {
   General: "bg-gray-500/15 text-gray-400 border-gray-500/20",
 };
 
+const CHART_COLORS: Record<string, string> = {
+  Food: "#f97316",
+  Transport: "#3b82f6",
+  Entertainment: "#a855f7",
+  Shopping: "#ec4899",
+  Health: "#22c55e",
+  Housing: "#eab308",
+  Travel: "#0ea5e9",
+  General: "#6b7280",
+};
+
 function fmt(n: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n);
 }
@@ -90,6 +102,7 @@ export function DashboardClient({
     return acc;
   }, {});
   const categories = Object.entries(byCategory).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const chartData = categories.map(([name, value]) => ({ name, value }));
 
   const allRecent = [...personalExpenses, ...groupExpenses]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -116,24 +129,28 @@ export function DashboardClient({
           <div className="flex gap-3">
             <div className="flex-1 bg-white/10 rounded-2xl px-3 py-2.5 backdrop-blur-sm border border-white/10">
               <div className="flex items-center gap-1.5 mb-1">
-                <ArrowDownLeft className="w-3.5 h-3.5 text-green-300" />
-                <span className="text-white/70 text-[10px] font-medium uppercase tracking-wide">Owed to you</span>
+                <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-300" />
+                <span className="text-white/70 text-[9px] font-bold uppercase tracking-wide">Lent (Receive)</span>
               </div>
-              <p className="text-white font-bold text-base">{fmt(totalOwedToMe)}</p>
+              <p className="text-emerald-300 font-black text-sm">{fmt(totalOwedToMe)}</p>
             </div>
             <div className="flex-1 bg-white/10 rounded-2xl px-3 py-2.5 backdrop-blur-sm border border-white/10">
               <div className="flex items-center gap-1.5 mb-1">
                 <ArrowUpRight className="w-3.5 h-3.5 text-red-300" />
-                <span className="text-white/70 text-[10px] font-medium uppercase tracking-wide">You owe</span>
+                <span className="text-white/70 text-[9px] font-bold uppercase tracking-wide">Borrowed (Pay)</span>
               </div>
-              <p className="text-white font-bold text-base">{fmt(totalIOwe)}</p>
+              <p className="text-red-300 font-black text-sm">{fmt(totalIOwe)}</p>
             </div>
-            <div className={`flex-1 rounded-2xl px-3 py-2.5 backdrop-blur-sm border border-white/10 ${netBalance >= 0 ? "bg-green-500/20" : "bg-red-500/20"}`}>
+            <div className={`flex-1 rounded-2xl px-3 py-2.5 backdrop-blur-sm border border-white/10 ${netBalance >= 0 ? "bg-emerald-500/20" : "bg-red-500/20"}`}>
               <div className="flex items-center gap-1.5 mb-1">
-                <TrendingUp className="w-3.5 h-3.5 text-white/70" />
-                <span className="text-white/70 text-[10px] font-medium uppercase tracking-wide">Net</span>
+                <TrendingUp className={`w-3.5 h-3.5 ${netBalance >= 0 ? "text-emerald-300" : "text-red-300"}`} />
+                <span className={`text-[9px] font-bold uppercase tracking-wide ${netBalance >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                  {netBalance >= 0 ? "You Receive" : "You Pay"}
+                </span>
               </div>
-              <p className="text-white font-bold text-base">{fmt(Math.abs(netBalance))}</p>
+              <p className={`font-black text-sm ${netBalance >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                {fmt(Math.abs(netBalance))}
+              </p>
             </div>
           </div>
         </motion.div>
@@ -174,6 +191,34 @@ export function DashboardClient({
                   <span className="text-xs font-bold">{fmt(amount)}</span>
                 </motion.div>
               ))}
+            </div>
+
+            {/* Recharts Pie Chart */}
+            <div className="mt-2 h-64 bg-card rounded-3xl border border-border card-shadow p-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={chartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[entry.name] || CHART_COLORS.General} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value) => fmt(Number(value))}
+                    contentStyle={{ borderRadius: '16px', border: 'none', backgroundColor: 'var(--card)', color: 'var(--foreground)', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}
+                    itemStyle={{ fontWeight: 'bold' }}
+                  />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
           </motion.section>
         )}

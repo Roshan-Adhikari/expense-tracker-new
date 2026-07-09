@@ -198,7 +198,7 @@ export function FriendsClient({ userId, friends: initialFriends }: { userId: str
               className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={() => setSheetOpen(false)} />
             <motion.div
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 20, stiffness: 400 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
               className="fixed bottom-0 left-0 right-0 z-50 bottom-sheet bg-card pb-safe"
             >
               <div className="flex justify-center pt-3 pb-1">
