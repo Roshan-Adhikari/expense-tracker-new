@@ -56,6 +56,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
   const [gName, setGName] = useState("");
   const [gDesc, setGDesc] = useState("");
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Expense form
   const [eDesc, setEDesc] = useState("");
@@ -73,13 +74,21 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
     if (!gName.trim()) return;
     setLoading(true);
-    const { data: group, error } = await supabase
+    const { data: group, error: gError } = await supabase
       .from("groups").insert({ name: gName, description: gDesc, created_by: userId }).select().single();
-    if (error || !group) { setLoading(false); return; }
+    if (gError || !group) { 
+      setErrorMsg(gError?.message || "Failed to create group");
+      setLoading(false); return; 
+    }
     const members = [{ group_id: group.id, user_id: userId }, ...selectedFriends.map(fid=>({ group_id: group.id, user_id: fid }))];
-    await supabase.from("group_members").insert(members);
+    const { error: mError } = await supabase.from("group_members").insert(members);
+    if (mError) {
+      setErrorMsg("Error adding members: " + mError.message);
+      setLoading(false); return;
+    }
     setGroups(prev => [group, ...prev]);
     setActiveGroupId(group.id);
     setGroupSheet(false);
@@ -247,10 +256,11 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                       )}
                     </div>
 
-                    <button type="submit" disabled={loading || !gName}
-                      className="w-full bg-primary text-white font-bold py-4 rounded-2xl fab-glow disabled:opacity-60 active:scale-[0.98] transition-all">
+                    <button type="submit" disabled={loading}
+                      className="w-full bg-primary text-white font-bold py-4 rounded-2xl fab-glow disabled:opacity-60 transition-all active:scale-[0.98]">
                       {loading ? "Creating…" : "Create Group"}
                     </button>
+                    {errorMsg && <p className="text-sm text-destructive mt-3 text-center">{errorMsg}</p>}
                   </form>
                 </div>
               </motion.div>
