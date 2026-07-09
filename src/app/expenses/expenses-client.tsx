@@ -113,10 +113,25 @@ export function ExpensesClient({ expenses: initial, userId }: { expenses: Expens
     };
 
     if (editingId) {
-      const { data } = await supabase.from("expenses").update(payload).eq("id", editingId).select().single();
+      const { data, error: err } = await supabase.from("expenses").update(payload).eq("id", editingId).select().single();
+      console.log("UPDATE result:", { data, err });
+      if (err) {
+        setError("Error: " + err.message + " (code: " + err.code + ")");
+        setLoading(false);
+        return;
+      }
       if (data) setExpenses(prev => prev.map(ex => ex.id === editingId ? data : ex));
     } else {
-      const { data } = await supabase.from("expenses").insert(payload).select().single();
+      // Debug: check auth session first
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log("Session before insert:", session?.user?.id, "userId prop:", userId);
+      const { data, error: err } = await supabase.from("expenses").insert(payload).select().single();
+      console.log("INSERT result:", { data, err, payload });
+      if (err) {
+        setError("Error: " + err.message + " (code: " + err.code + ")");
+        setLoading(false);
+        return;
+      }
       if (data) setExpenses(prev => [data, ...prev]);
     }
 
