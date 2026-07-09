@@ -48,7 +48,12 @@ export function FriendsClient({ userId, friends: initialFriends }: { userId: str
 
     if (!profile) {
       const res = await fetch("/api/send-invite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: trimmed }) });
-      setStatus({ type: res.ok ? "success" : "error", msg: res.ok ? `Invite sent to ${trimmed}!` : "Could not send invite." });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        setStatus({ type: "error", msg: errorData?.error || "Could not send invite." });
+      } else {
+        setStatus({ type: "success", msg: `Invite sent to ${trimmed}!` });
+      }
       setLoading(false); return;
     }
 
