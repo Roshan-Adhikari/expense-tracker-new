@@ -34,7 +34,7 @@ export function LoginClient() {
       <div className="relative z-10 flex flex-col flex-1 px-6 pt-safe">
         {/* Logo area */}
         <motion.div className="flex flex-col items-center text-center pt-16 pb-8"
-          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
           <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-primary to-accent flex items-center justify-center mb-6 shadow-2xl shadow-primary/30">
             <Zap className="w-10 h-10 text-white" fill="white" />
           </div>
@@ -46,7 +46,7 @@ export function LoginClient() {
 
         {/* Feature pills */}
         <motion.div className="space-y-3 mb-10"
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25, duration: 0.5 }}>
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15, duration: 0.3 }}>
           {features.map(({ icon: Icon, label, desc }) => (
             <div key={label} className="flex items-center gap-4 px-4 py-3.5 rounded-2xl glass border border-border/50 card-shadow">
               <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
@@ -62,7 +62,7 @@ export function LoginClient() {
 
         {/* CTA */}
         <motion.div className="mt-auto pb-10 space-y-3"
-          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.5 }}>
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.3 }}>
           <button
             onClick={handleGoogleLogin}
             disabled={loading}

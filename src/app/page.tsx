@@ -45,7 +45,7 @@ export default function Home() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.3 }}
         >
           <Badge>Announcing Expense Tracker 1.0</Badge>
           <h1 className="text-4xl md:text-7xl font-extrabold tracking-tight mt-6 bg-clip-text text-transparent bg-gradient-to-r from-white via-purple-100 to-accent leading-[1.1]">
@@ -78,7 +78,7 @@ export default function Home() {
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
+          transition={{ duration: 0.3 }}
           className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-24 text-left"
         >
           <div className="glass p-6 rounded-2xl border border-white/5">
