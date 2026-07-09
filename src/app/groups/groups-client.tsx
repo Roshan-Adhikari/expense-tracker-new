@@ -29,7 +29,9 @@ const bgColors = ["bg-violet-500","bg-blue-500","bg-pink-500","bg-emerald-500","
 const colorFor = (id: string) => bgColors[id.charCodeAt(0) % bgColors.length];
 const initials = (name: string | null, email: string) =>
   name ? name.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase() : email[0].toUpperCase();
-const fmt = (n: number) => new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(n);
+function fmt(n: number) {
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(n);
+}
 
 interface Props {
   userId: string; groups: Group[]; allMembers: GroupMember[];
@@ -396,7 +398,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                   <div className="rounded-2xl border border-border bg-background px-4 py-3 focus-within:ring-2 focus-within:ring-primary/30 transition-all">
                     <label className="text-xs text-muted-foreground font-medium">Total Amount</label>
                     <div className="flex items-center gap-1 mt-1">
-                      <span className="text-2xl font-bold text-muted-foreground">$</span>
+                      <span className="text-2xl font-bold text-muted-foreground">₹</span>
                       <input type="number" step="0.01" min="0.01" placeholder="0.00" id="group-expense-amount"
                         value={eAmount} onChange={e => setEAmount(e.target.value)}
                         className="flex-1 text-2xl font-black bg-transparent focus:outline-none text-foreground" required />

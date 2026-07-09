@@ -40,7 +40,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 function fmt(n: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(n);
 }
 
 function relDate(d: string) {
@@ -282,7 +282,7 @@ export function ExpensesClient({ expenses: initial, userId }: { expenses: Expens
                   <div className="rounded-2xl border border-border bg-background px-4 py-3 focus-within:ring-2 focus-within:ring-primary/30 transition-all">
                     <label className="text-xs text-muted-foreground font-medium">Amount</label>
                     <div className="flex items-center gap-1 mt-1">
-                      <span className="text-2xl font-bold text-muted-foreground">$</span>
+                      <span className="text-2xl font-bold text-muted-foreground">₹</span>
                       <input
                         type="number" step="0.01" min="0.01" placeholder="0.00" id="expense-amount"
                         value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}

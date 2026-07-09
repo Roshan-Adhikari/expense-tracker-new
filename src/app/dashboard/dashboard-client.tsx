@@ -6,7 +6,8 @@ import {
   Plus, Receipt, Users, ChevronRight, Zap,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 interface Expense {
   id: string;
@@ -50,7 +51,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 function fmt(n: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n);
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n);
 }
 
 function relDate(d: string) {
@@ -73,6 +74,13 @@ export function DashboardClient({
   profile, personalExpenses, groupExpenses,
   totalPersonal, totalOwedToMe, totalIOwe,
 }: DashboardClientProps) {
+  const router = useRouter();
+
+  // Force fresh data on mount when navigating via client router
+  useEffect(() => {
+    router.refresh();
+  }, [router]);
+
   const netBalance = totalOwedToMe - totalIOwe;
   const firstName = profile?.full_name?.split(" ")[0] || "there";
 

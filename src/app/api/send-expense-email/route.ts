@@ -31,11 +31,11 @@ export async function POST(request: Request) {
               </tr>
               <tr>
                 <td style="color: #9CA3AF; padding-bottom: 8px;">Total Amount:</td>
-                <td style="font-weight: bold; color: #F8F9FA; padding-bottom: 8px;">$${Number(amount).toFixed(2)}</td>
+                <td style="font-weight: bold; color: #F8F9FA; padding-bottom: 8px;">₹${Number(amount).toFixed(2)}</td>
               </tr>
               <tr style="border-top: 1px solid rgba(255,255,255,0.05);">
                 <td style="color: #7C3AED; font-weight: bold; padding-top: 12px;">Your Share:</td>
-                <td style="color: #7C3AED; font-weight: bold; font-size: 18px; padding-top: 12px;">$${Number(splitAmount).toFixed(2)}</td>
+                <td style="color: #7C3AED; font-weight: bold; font-size: 18px; padding-top: 12px;">₹${Number(splitAmount).toFixed(2)}</td>
               </tr>
             </table>
           </div>
