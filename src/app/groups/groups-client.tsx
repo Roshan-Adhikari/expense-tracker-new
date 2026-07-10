@@ -177,13 +177,22 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
     const amountNum = Number(eAmount);
     const { data: expense, error } = await supabase
       .from("expenses").insert({ description: eDesc, amount: amountNum, category: eCat, date: eDate, paid_by: ePaidBy, group_id: activeGroupId }).select().single();
-    if (error || !expense) { setLoading(false); return; }
+    if (error || !expense) { 
+      alert("Failed to add expense: " + (error?.message || "Unknown error"));
+      setLoading(false); 
+      return; 
+    }
 
     const splits = splitType === "equal"
       ? activeMembers.map(m => ({ expense_id: expense.id, user_id: m.user_id, amount_owed: parseFloat((amountNum / activeMembers.length).toFixed(2)), is_settled: m.user_id === ePaidBy }))
       : activeMembers.map(m => ({ expense_id: expense.id, user_id: m.user_id, amount_owed: parseFloat(customSplits[m.user_id] || "0"), is_settled: m.user_id === ePaidBy }));
 
-    await supabase.from("expense_splits").insert(splits);
+    const { error: splitsError } = await supabase.from("expense_splits").insert(splits);
+    if (splitsError) {
+      alert("Failed to add expense splits: " + splitsError.message);
+      setLoading(false);
+      return;
+    }
 
     // Fire-and-forget notifications
     const othersToNotify = activeMembers.filter(m => m.user_id !== userId);

@@ -103,19 +103,34 @@ create policy "Users can view relevant expenses" on public.expenses for select u
   exists (select 1 from public.expense_splits where expense_id = expenses.id and user_id = auth.uid()) or
   (group_id is not null and exists (select 1 from public.group_members where group_id = expenses.group_id and user_id = auth.uid()))
 );
-create policy "Users can insert expenses" on public.expenses for insert with check (paid_by = auth.uid());
-create policy "Users can update their expenses" on public.expenses for update using (paid_by = auth.uid());
-create policy "Users can delete their expenses" on public.expenses for delete using (paid_by = auth.uid());
+create policy "Users can insert expenses" on public.expenses for insert with check (
+  paid_by = auth.uid() or
+  (group_id is not null and exists (select 1 from public.group_members where group_id = expenses.group_id and user_id = auth.uid()))
+);
+create policy "Users can update their expenses" on public.expenses for update using (
+  paid_by = auth.uid() or
+  (group_id is not null and exists (select 1 from public.group_members where group_id = expenses.group_id and user_id = auth.uid()))
+);
+create policy "Users can delete their expenses" on public.expenses for delete using (
+  paid_by = auth.uid() or
+  (group_id is not null and exists (select 1 from public.group_members where group_id = expenses.group_id and user_id = auth.uid()))
+);
 
 -- Expense Splits: Users can see splits for expenses they can see
 create policy "Users can view relevant splits" on public.expense_splits for select using (
   exists (select 1 from public.expenses where id = expense_splits.expense_id)
 );
 create policy "Users can insert splits for their expenses" on public.expense_splits for insert with check (
-  exists (select 1 from public.expenses where id = expense_splits.expense_id and paid_by = auth.uid())
+  exists (select 1 from public.expenses e where e.id = expense_splits.expense_id and (
+    e.paid_by = auth.uid() or
+    (e.group_id is not null and exists (select 1 from public.group_members gm where gm.group_id = e.group_id and gm.user_id = auth.uid()))
+  ))
 );
 create policy "Users can update relevant splits" on public.expense_splits for update using (
-  exists (select 1 from public.expenses where id = expense_splits.expense_id and paid_by = auth.uid())
+  exists (select 1 from public.expenses e where e.id = expense_splits.expense_id and (
+    e.paid_by = auth.uid() or
+    (e.group_id is not null and exists (select 1 from public.group_members gm where gm.group_id = e.group_id and gm.user_id = auth.uid()))
+  ))
   or
   user_id = auth.uid()
 );
