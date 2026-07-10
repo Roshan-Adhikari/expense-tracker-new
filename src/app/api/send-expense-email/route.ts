@@ -5,7 +5,7 @@ const resend = new Resend(process.env.RESEND_API_KEY || "temp");
 
 export async function POST(request: Request) {
   try {
-    const { friendEmail, friendName, userName, amount, description, groupName, splitAmount } = await request.json();
+    const { friendEmail, friendName, userName, amount, description, groupName, splitAmount, isEdit } = await request.json();
     const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
 
     if (!process.env.RESEND_API_KEY) {
@@ -13,15 +13,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, simulated: true });
     }
 
+    const subject = isEdit ? `Updated Shared Expense: ${description}` : `New Shared Expense: ${description}`;
+    const actionText = isEdit ? "updated an expense" : "added a new expense";
+
     const { data, error } = await resend.emails.send({
       from: `Expense Tracker <${fromEmail}>`,
       to: [friendEmail],
-      subject: `New Shared Expense: ${description}`,
+      subject,
       html: `
         <div style="font-family: sans-serif; background-color: #05050A; color: #F8F9FA; padding: 40px; border-radius: 12px; max-width: 600px; margin: 0 auto; border: 1px solid rgba(255,255,255,0.05);">
           <h2 style="color: #7C3AED; margin-bottom: 20px;">Shared Expense Notification</h2>
           <p>Hey ${friendName},</p>
-          <p><strong>${userName}</strong> just added a new expense in the group <strong>${groupName}</strong>.</p>
+          <p><strong>${userName}</strong> just ${actionText} in the group <strong>${groupName}</strong>.</p>
           
           <div style="background-color: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 20px; margin: 25px 0;">
             <table style="width: 100%; text-align: left;">

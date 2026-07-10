@@ -183,6 +183,23 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
     setGName(""); setGDesc(""); setSelectedFriends([]);
     setLoading(false);
     setView("detail");
+    
+    // Fire-and-forget notifications for new group
+    const me = { id: userId, full_name: "Someone" }; // We'll get a real name if we can, but we don't have the user's full name readily here, so we might just use "Someone" or the userId if needed. Wait, we have friends profiles.
+    for (const fid of selectedFriends) {
+      const friend = friends.find(f => f.friend_id === fid);
+      if (friend?.profiles?.email) {
+        fetch("/api/send-group-email", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            friendEmail: friend.profiles.email,
+            friendName: friend.profiles.full_name || "Friend",
+            userName: "Your friend",
+            groupName: gName,
+          }),
+        }).catch(console.error);
+      }
+    }
     logActivity("group_created", { name: gName }, group.id);
     startTransition(() => router.refresh());
   };
@@ -253,22 +270,21 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
     setLocalSplits(prev => [...splits, ...prev.filter(s => s.expense_id !== expenseId)]);
     await supabase.from("expense_splits").insert(splits);
 
-    if (!editExpenseId) {
-      // Fire-and-forget notifications
-      const othersToNotify = activeMembers.filter(m => m.user_id !== userId);
-      for (const member of othersToNotify) {
-        if (member.profiles?.email) {
-          const splitAmt = splits.find(s => s.user_id === member.user_id)?.amount_owed || 0;
-          fetch("/api/send-expense-email", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              friendEmail: member.profiles.email,
-              friendName: member.profiles.full_name || "Friend",
-              userName: activeMembers.find(m=>m.user_id===userId)?.profiles?.full_name || "Someone",
-              amount: amountNum, description: eDesc, groupName: activeGroup?.name || "", splitAmount: splitAmt,
-            }),
-          }).catch(console.error);
-        }
+    // Fire-and-forget notifications
+    const othersToNotify = activeMembers.filter(m => m.user_id !== userId);
+    for (const member of othersToNotify) {
+      if (member.profiles?.email) {
+        const splitAmt = splits.find(s => s.user_id === member.user_id)?.amount_owed || 0;
+        fetch("/api/send-expense-email", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            friendEmail: member.profiles.email,
+            friendName: member.profiles.full_name || "Friend",
+            userName: activeMembers.find(m=>m.user_id===userId)?.profiles?.full_name || "Someone",
+            amount: amountNum, description: eDesc, groupName: activeGroup?.name || "", splitAmount: splitAmt,
+            isEdit: !!editExpenseId
+          }),
+        }).catch(console.error);
       }
     }
 
