@@ -38,9 +38,9 @@ export default async function GroupsPage() {
           .in("group_id", groupIds),
         supabase
           .from("expenses")
-          .select("id, description, amount, category, date, group_id, paid_by, profiles(full_name)")
+          .select("id, description, amount, category, date, created_at, group_id, paid_by, profiles(full_name)")
           .in("group_id", groupIds)
-          .order("date", { ascending: false }),
+          .order("created_at", { ascending: false }),
         supabase
           .from("expense_splits")
           .select("expense_id, user_id, amount_owed, is_settled, expenses!inner(group_id)")

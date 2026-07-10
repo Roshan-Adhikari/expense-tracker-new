@@ -20,7 +20,7 @@ interface Profile { id: string; full_name: string | null; avatar_url: string | n
 interface GroupMember { group_id: string; user_id: string; profiles: Profile | null; }
 interface GroupExpense {
   id: string; description: string; amount: number; category: string;
-  date: string; group_id: string | null; paid_by: string;
+  date: string; created_at?: string; group_id: string | null; paid_by: string;
   profiles: { full_name: string | null } | null;
 }
 interface ExpenseSplit { expense_id: string; user_id: string; amount_owed: number; is_settled: boolean; }
@@ -603,10 +603,22 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
           </div>
         ) : (
           <div className="rounded-3xl overflow-hidden card-shadow border border-border bg-card divide-y divide-border mb-6">
-            {activeExpenses.map(exp => {
+            {[...activeExpenses]
+              .sort((a, b) => new Date(b.created_at || b.date).getTime() - new Date(a.created_at || a.date).getTime())
+              .map(exp => {
               const splits = localSplits.filter(s => s.expense_id === exp.id);
               const mySplit = splits.find(s => s.user_id === userId);
               const iPaid = exp.paid_by === userId;
+              const memberNames = splits
+                .map(s => {
+                  const mem = activeMembers.find(m => m.user_id === s.user_id);
+                  return s.user_id === userId ? "You" : (mem?.profiles?.full_name || "Someone");
+                })
+                .join(" · ");
+              const entryTime = exp.created_at
+                ? new Date(exp.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })
+                : "";
+              const entryDate = new Date(exp.created_at || exp.date).toLocaleDateString("en-IN", { month: "short", day: "numeric" });
               return (
                 <div key={exp.id} className="px-4 py-4">
                   <div className="flex items-start justify-between gap-3">
@@ -616,9 +628,12 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold truncate">{exp.description}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {iPaid ? "You paid" : `${exp.profiles?.full_name || "Someone"} paid`} · {new Date(exp.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          <span className="font-medium">{iPaid ? "You" : (exp.profiles?.full_name || "Someone")}</span>
+                          {" paid · "}
+                          <span className="text-muted-foreground/70">{memberNames}</span>
                         </p>
+                        <p className="text-[10px] text-muted-foreground/50 mt-0.5">{entryDate}{entryTime ? ` · ${entryTime}` : ""}</p>
                       </div>
                     </div>
                     <div className="text-right shrink-0 flex items-center gap-3">
@@ -825,7 +840,18 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                             }
                           }}
                           className="w-full mt-1 py-2 rounded-xl text-xs font-bold transition-all text-muted-foreground bg-muted hover:bg-muted-foreground/10">
-                          {ePaidBy === userId ? "They owe full amount" : "You owe full amount"}
+                          {ePaidBy === userId
+                          ? (() => {
+                              const other = activeMembers.find(m => m.user_id !== userId);
+                              const otherName = other?.profiles?.full_name?.split(" ")[0] || "They";
+                              return `${otherName} owes full amount`;
+                            })()
+                          : (() => {
+                              const payer = activeMembers.find(m => m.user_id === ePaidBy);
+                              const payerName = payer?.profiles?.full_name?.split(" ")[0] || "They";
+                              return `You owe ${payerName} full amount`;
+                            })()
+                          }
                         </button>
                       )}
                     </div>
