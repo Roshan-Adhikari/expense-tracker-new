@@ -24,7 +24,7 @@ export default async function GroupsPage() {
   const groupIds = memberRows?.map((r) => r.group_id) ?? [];
 
   // Step 2: Parallel fetch groups, allMembers, allExpenses, and allSplits for those groups
-  const [groupsRes, allMembersRes, allExpensesRes, allSplitsRes] = groupIds.length
+  const [groupsRes, allMembersRes, allExpensesRes, allSplitsRes, logsRes] = groupIds.length
     ? await Promise.all([
         supabase
           .from("groups")
@@ -43,14 +43,20 @@ export default async function GroupsPage() {
         supabase
           .from("expense_splits")
           .select("expense_id, user_id, amount_owed, is_settled, expenses!inner(group_id)")
-          .in("expenses.group_id", groupIds)
+          .in("expenses.group_id", groupIds),
+        supabase
+          .from("activity_logs")
+          .select("id, group_id, user_id, action, details, created_at, profiles(full_name, avatar_url)")
+          .in("group_id", groupIds)
+          .order("created_at", { ascending: false })
       ])
-    : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }];
+    : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
 
   const groups = groupsRes.data;
   const allMembers = allMembersRes.data;
   const allExpenses = allExpensesRes.data;
   const allSplitsRaw = allSplitsRes.data;
+  const activityLogs = logsRes.data;
 
   // Format splits to remove the nested expenses property
   const allSplits = (allSplitsRaw ?? []).map((s: any) => ({
@@ -82,6 +88,16 @@ export default async function GroupsPage() {
     profiles: Array.isArray(f.profiles) ? f.profiles[0] : f.profiles
   })).filter(f => f.profiles !== null && f.profiles !== undefined);
 
+  const formattedLogs = (activityLogs ?? []).map((log: any) => ({
+    id: log.id,
+    group_id: log.group_id,
+    user_id: log.user_id,
+    action: log.action,
+    details: log.details,
+    created_at: log.created_at,
+    profiles: Array.isArray(log.profiles) ? log.profiles[0] : log.profiles
+  }));
+
   return (
     <GroupsClient
       userId={user.id}
@@ -90,6 +106,7 @@ export default async function GroupsPage() {
       allExpenses={formattedExpenses}
       allSplits={allSplits ?? []}
       friends={formattedFriends}
+      activityLogs={formattedLogs}
     />
   );
 }

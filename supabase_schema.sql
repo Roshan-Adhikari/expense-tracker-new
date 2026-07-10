@@ -136,6 +136,25 @@ create policy "Users can update relevant splits" on public.expense_splits for up
 );
 
 
+-- 6. Activity Logs Table
+create table public.activity_logs (
+  id uuid default uuid_generate_v4() primary key,
+  group_id uuid references public.groups(id) on delete cascade not null,
+  user_id uuid references public.profiles(id) on delete cascade not null,
+  action text not null,
+  details jsonb,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+alter table public.activity_logs enable row level security;
+
+create policy "Users can view relevant activity logs" on public.activity_logs for select using (
+  exists (select 1 from public.group_members where group_id = activity_logs.group_id and user_id = auth.uid())
+);
+create policy "Users can insert activity logs" on public.activity_logs for insert with check (
+  user_id = auth.uid() and
+  exists (select 1 from public.group_members where group_id = activity_logs.group_id and user_id = auth.uid())
+);
+
 -- ==========================================
 -- TRIGGERS
 -- ==========================================

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Users, Receipt, ChevronRight, Check, X, DollarSign, User as UserIcon, Trash2 } from "lucide-react";
+import { Plus, Users, Receipt, ChevronRight, Check, X, DollarSign, User as UserIcon, Trash2, Pencil, Activity } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis } from "recharts";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
@@ -20,6 +20,7 @@ interface GroupExpense {
   profiles: { full_name: string | null } | null;
 }
 interface ExpenseSplit { expense_id: string; user_id: string; amount_owed: number; is_settled: boolean; }
+interface ActivityLog { id: string; group_id: string; user_id: string; action: string; details: any; created_at: string; profiles: Profile | null; }
 
 const CATEGORY_ICONS: Record<string, string> = {
   Food:"🍔", Transport:"🚗", Entertainment:"🎮", Shopping:"🛍️",
@@ -48,9 +49,10 @@ const CHART_COLORS: Record<string, string> = {
 interface Props {
   userId: string; groups: Group[]; allMembers: GroupMember[];
   allExpenses: GroupExpense[]; allSplits: ExpenseSplit[]; friends: Friend[];
+  activityLogs?: ActivityLog[];
 }
 
-export function GroupsClient({ userId, groups: initial, allMembers, allExpenses, allSplits, friends }: Props) {
+export function GroupsClient({ userId, groups: initial, allMembers, allExpenses, allSplits, friends, activityLogs = [] }: Props) {
   const router = useRouter();
   const supabase = createClient();
   const [, startTransition] = useTransition();
@@ -83,9 +85,19 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
 
   const [localExpenses, setLocalExpenses] = useState(allExpenses);
   const [localSplits, setLocalSplits] = useState(allSplits);
+  const [localLogs, setLocalLogs] = useState(activityLogs);
+  const [editExpenseId, setEditExpenseId] = useState<string | null>(null);
 
   useEffect(() => setLocalExpenses(allExpenses), [allExpenses]);
   useEffect(() => setLocalSplits(allSplits), [allSplits]);
+  useEffect(() => setLocalLogs(activityLogs), [activityLogs]);
+
+  const logActivity = (action: string, details: any, gId: string = activeGroupId!) => {
+    if (!gId) return;
+    const newLog: ActivityLog = { id: Math.random().toString(), group_id: gId, user_id: userId, action, details, created_at: new Date().toISOString(), profiles: { id: userId, full_name: "You", avatar_url: null, email: "" } };
+    setLocalLogs(prev => [newLog, ...prev]);
+    supabase.from("activity_logs").insert({ group_id: gId, user_id: userId, action, details }).then();
+  };
 
   const activeGroup = groups.find(g => g.id === activeGroupId);
   const activeMembers = allMembers.filter(m => m.group_id === activeGroupId);
@@ -173,54 +185,97 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
     setGName(""); setGDesc(""); setSelectedFriends([]);
     setLoading(false);
     setView("detail");
+    logActivity("group_created", { name: gName }, group.id);
     startTransition(() => router.refresh());
   };
 
-  const handleAddExpense = async (e: React.FormEvent) => {
+  const openAddExpense = () => {
+    setEditExpenseId(null);
+    setEDesc(""); setEAmount(""); setECat("General"); setCustomSplits({}); setEditedSplits({}); setEPaidBy(userId); setSplitType("equal");
+    setExpenseSheet(true);
+  };
+
+  const openEditExpense = (expense: GroupExpense) => {
+    setEditExpenseId(expense.id);
+    setEDesc(expense.description);
+    setEAmount(expense.amount.toString());
+    setECat(expense.category);
+    setEDate(expense.date);
+    setEPaidBy(expense.paid_by);
+    
+    // Parse custom splits
+    const splits = localSplits.filter(s => s.expense_id === expense.id);
+    const isCustom = splits.some(s => s.amount_owed !== parseFloat((expense.amount / splits.length).toFixed(2)) && s.amount_owed !== parseFloat((expense.amount / splits.length).toFixed(2)) + 0.01 && s.amount_owed !== parseFloat((expense.amount / splits.length).toFixed(2)) - 0.01);
+    
+    if (isCustom) {
+      setSplitType("custom");
+      const cSplits: Record<string, string> = {};
+      const eSplits: Record<string, boolean> = {};
+      splits.forEach(s => { cSplits[s.user_id] = s.amount_owed.toString(); eSplits[s.user_id] = true; });
+      setCustomSplits(cSplits);
+      setEditedSplits(eSplits);
+    } else {
+      setSplitType("equal");
+    }
+    setExpenseSheet(true);
+  };
+
+  const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeGroupId || !eDesc || !eAmount) return;
     setLoading(true);
     const amountNum = Number(eAmount);
-    const { data: expense, error } = await supabase
-      .from("expenses").insert({ description: eDesc, amount: amountNum, category: eCat, date: eDate, paid_by: ePaidBy, group_id: activeGroupId }).select().single();
-    if (error || !expense) { 
-      alert("Failed to add expense: " + (error?.message || "Unknown error"));
-      setLoading(false); 
-      return; 
+    
+    let expenseData = { description: eDesc, amount: amountNum, category: eCat, date: eDate, paid_by: ePaidBy, group_id: activeGroupId };
+    let expenseId = editExpenseId;
+
+    if (editExpenseId) {
+      const { data, error } = await supabase.from("expenses").update(expenseData).eq("id", editExpenseId).select("id, description, amount, category, date, group_id, paid_by, profiles(full_name)").single();
+      if (error || !data) { alert("Failed to update: " + error?.message); setLoading(false); return; }
+      
+      const newExpense = { ...data, profiles: Array.isArray(data.profiles) ? data.profiles[0] : data.profiles };
+      setLocalExpenses(prev => prev.map(ex => ex.id === editExpenseId ? newExpense : ex));
+      
+      // Delete old splits to replace
+      await supabase.from("expense_splits").delete().eq("expense_id", editExpenseId);
+      logActivity("expense_edited", { description: eDesc, amount: amountNum });
+    } else {
+      const { data, error } = await supabase.from("expenses").insert(expenseData).select("id, description, amount, category, date, group_id, paid_by, profiles(full_name)").single();
+      if (error || !data) { alert("Failed to add expense: " + (error?.message || "Unknown error")); setLoading(false); return; }
+      expenseId = data.id;
+      const newExpense = { ...data, profiles: Array.isArray(data.profiles) ? data.profiles[0] : data.profiles };
+      setLocalExpenses(prev => [newExpense, ...prev]);
+      logActivity("expense_added", { description: eDesc, amount: amountNum });
     }
 
     const splits = splitType === "equal"
-      ? activeMembers.map(m => ({ expense_id: expense.id, user_id: m.user_id, amount_owed: parseFloat((amountNum / activeMembers.length).toFixed(2)), is_settled: m.user_id === ePaidBy }))
-      : activeMembers.map(m => ({ expense_id: expense.id, user_id: m.user_id, amount_owed: parseFloat(customSplits[m.user_id] || "0"), is_settled: m.user_id === ePaidBy }));
+      ? activeMembers.map(m => ({ expense_id: expenseId!, user_id: m.user_id, amount_owed: parseFloat((amountNum / activeMembers.length).toFixed(2)), is_settled: m.user_id === ePaidBy }))
+      : activeMembers.map(m => ({ expense_id: expenseId!, user_id: m.user_id, amount_owed: parseFloat(customSplits[m.user_id] || "0"), is_settled: m.user_id === ePaidBy }));
 
-    setLocalExpenses(prev => [expense, ...prev]);
-    setLocalSplits(prev => [...splits, ...prev]);
+    setLocalSplits(prev => [...splits, ...prev.filter(s => s.expense_id !== expenseId)]);
+    await supabase.from("expense_splits").insert(splits);
 
-    const { error: splitsError } = await supabase.from("expense_splits").insert(splits);
-    if (splitsError) {
-      alert("Failed to add expense splits: " + splitsError.message);
-      setLoading(false);
-      return;
-    }
-
-    // Fire-and-forget notifications
-    const othersToNotify = activeMembers.filter(m => m.user_id !== userId);
-    for (const member of othersToNotify) {
-      if (member.profiles?.email) {
-        const splitAmt = splits.find(s => s.user_id === member.user_id)?.amount_owed || 0;
-        fetch("/api/send-expense-email", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            friendEmail: member.profiles.email,
-            friendName: member.profiles.full_name || "Friend",
-            userName: activeMembers.find(m=>m.user_id===userId)?.profiles?.full_name || "Someone",
-            amount: amountNum, description: eDesc, groupName: activeGroup?.name || "", splitAmount: splitAmt,
-          }),
-        }).catch(console.error);
+    if (!editExpenseId) {
+      // Fire-and-forget notifications
+      const othersToNotify = activeMembers.filter(m => m.user_id !== userId);
+      for (const member of othersToNotify) {
+        if (member.profiles?.email) {
+          const splitAmt = splits.find(s => s.user_id === member.user_id)?.amount_owed || 0;
+          fetch("/api/send-expense-email", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              friendEmail: member.profiles.email,
+              friendName: member.profiles.full_name || "Friend",
+              userName: activeMembers.find(m=>m.user_id===userId)?.profiles?.full_name || "Someone",
+              amount: amountNum, description: eDesc, groupName: activeGroup?.name || "", splitAmount: splitAmt,
+            }),
+          }).catch(console.error);
+        }
       }
     }
 
     setExpenseSheet(false);
+    setEditExpenseId(null);
     setEDesc(""); setEAmount(""); setECat("General"); setCustomSplits({}); setEditedSplits({}); setEPaidBy(userId);
     setLoading(false);
     startTransition(() => router.refresh());
@@ -259,6 +314,11 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
         s.expense_id === expenseId && s.user_id === debtorId ? { ...s, is_settled: currentSettleState } : s
       ));
     } else {
+      if (!currentSettleState) {
+        const expense = localExpenses.find(e => e.id === expenseId);
+        const debtorName = activeMembers.find(m => m.user_id === debtorId)?.profiles?.full_name || "Someone";
+        logActivity("split_settled", { description: expense?.description, debtorName });
+      }
       startTransition(() => router.refresh());
     }
     setLoading(false);
@@ -527,7 +587,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
       <div className="px-4">
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-bold">Expenses</p>
-          <button onClick={() => setExpenseSheet(true)} id="add-group-expense-btn"
+          <button onClick={openAddExpense} id="add-group-expense-btn"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary text-xs font-bold border border-primary/20 active:scale-95 transition-transform">
             <Plus className="w-3.5 h-3.5" /> Add
           </button>
@@ -538,7 +598,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
             <Receipt className="w-10 h-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm font-semibold mb-1">No expenses yet</p>
             <p className="text-xs text-muted-foreground mb-4">Add the first shared expense for this group.</p>
-            <button onClick={() => setExpenseSheet(true)}
+            <button onClick={openAddExpense}
               className="inline-flex items-center gap-2 bg-primary text-white text-xs font-bold px-5 py-2.5 rounded-xl fab-glow">
               <Plus className="w-3.5 h-3.5" /> Add Expense
             </button>
@@ -571,10 +631,16 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                         </p>}
                       </div>
                       {iPaid && (
-                        <button onClick={() => handleDeleteExpense(exp.id)} disabled={loading}
-                          className="p-2 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 active:scale-95 transition-all shrink-0">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => openEditExpense(exp)} disabled={loading}
+                            className="p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 active:scale-95 transition-all shrink-0">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteExpense(exp.id)} disabled={loading}
+                            className="p-2 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 active:scale-95 transition-all shrink-0">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -628,6 +694,56 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
         )}
       </div>
 
+      {/* Activity Feed */}
+      <div className="px-4 mt-8 mb-24">
+        <div className="flex items-center gap-2 mb-4">
+          <Activity className="w-4 h-4 text-primary" />
+          <p className="text-sm font-bold">Recent Activity</p>
+        </div>
+        <div className="space-y-4">
+          {localLogs.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-6 bg-muted/30 rounded-2xl border border-border">No activity yet</p>
+          ) : (
+            <div className="relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-[2px] before:bg-gradient-to-b before:from-border before:via-border before:to-transparent">
+              {localLogs.map((log, i) => {
+                const isYou = log.user_id === userId;
+                const name = isYou ? "You" : (log.profiles?.full_name || "Someone");
+                
+                let icon = <Activity className="w-3 h-3 text-muted-foreground" />;
+                let text = <><span className="font-semibold">{name}</span> did something</>;
+                
+                if (log.action === "group_created") {
+                  icon = <Users className="w-3 h-3 text-violet-500" />;
+                  text = <><span className="font-semibold">{name}</span> created the group <span className="font-semibold">{log.details?.name}</span></>;
+                } else if (log.action === "expense_added") {
+                  icon = <Receipt className="w-3 h-3 text-primary" />;
+                  text = <><span className="font-semibold">{name}</span> added an expense: <span className="font-semibold">{log.details?.description}</span> ({fmt(log.details?.amount)})</>;
+                } else if (log.action === "expense_edited") {
+                  icon = <Pencil className="w-3 h-3 text-orange-500" />;
+                  text = <><span className="font-semibold">{name}</span> updated the expense: <span className="font-semibold">{log.details?.description}</span></>;
+                } else if (log.action === "split_settled") {
+                  icon = <Check className="w-3 h-3 text-emerald-500" />;
+                  text = <><span className="font-semibold">{name}</span> marked <span className="font-semibold">{log.details?.debtorName}</span> as paid for <span className="italic">{log.details?.description}</span></>;
+                }
+
+                return (
+                  <div key={log.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active mb-5">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full border-2 border-border bg-card shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                      {icon}
+                    </div>
+                    <div className="w-[calc(100%-3.5rem)] md:w-[calc(50%-2.5rem)] bg-card p-3.5 rounded-2xl border border-border card-shadow relative">
+                      <div className="absolute top-4 -left-2 md:group-odd:-right-2 md:group-odd:left-auto md:group-odd:rotate-180 w-3 h-3 bg-card border-l border-t border-border rotate-[-45deg]" />
+                      <p className="text-xs leading-relaxed">{text}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1.5 font-medium tracking-wide uppercase">{new Date(log.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Add Expense Sheet */}
       <AnimatePresence>
         {expenseSheet && (
@@ -640,10 +756,10 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
               <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-border" /></div>
               <div className="px-5 pb-6">
                 <div className="flex items-center justify-between mb-5 mt-2">
-                  <h3 className="text-lg font-bold">Add Group Expense</h3>
-                  <button onClick={() => setExpenseSheet(false)} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"><X className="w-4 h-4 text-muted-foreground" /></button>
+                  <h3 className="text-lg font-bold">{editExpenseId ? "Edit Expense" : "Add Group Expense"}</h3>
+                  <button type="button" onClick={() => setExpenseSheet(false)} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"><X className="w-4 h-4 text-muted-foreground" /></button>
                 </div>
-                <form onSubmit={handleAddExpense} className="space-y-4">
+                <form onSubmit={handleSaveExpense} className="space-y-4">
                   {/* Amount */}
                   <div className="rounded-2xl border border-border bg-background px-4 py-3 focus-within:ring-2 focus-within:ring-primary/30 transition-all">
                     <label className="text-xs text-muted-foreground font-medium">Total Amount</label>
