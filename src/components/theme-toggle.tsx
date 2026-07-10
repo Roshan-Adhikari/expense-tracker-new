@@ -9,6 +9,7 @@ export function ThemeToggle() {
   useEffect(() => {
     // Check initial theme from document class
     const isDark = document.documentElement.classList.contains("dark");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTheme(isDark ? "dark" : "light");
   }, []);
 

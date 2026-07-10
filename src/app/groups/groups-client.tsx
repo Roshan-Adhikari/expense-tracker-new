@@ -647,18 +647,16 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                           {iPaid ? `+${fmt(exp.amount - mySplit.amount_owed)}` : `-${fmt(mySplit.amount_owed)}`}
                         </p>}
                       </div>
-                      {iPaid && (
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => openEditExpense(exp)} disabled={loading}
-                            className="p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 active:scale-95 transition-all shrink-0">
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => handleDeleteExpense(exp.id)} disabled={loading}
-                            className="p-2 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 active:scale-95 transition-all shrink-0">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => openEditExpense(exp)} disabled={loading}
+                          className="p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 active:scale-95 transition-all shrink-0">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleDeleteExpense(exp.id)} disabled={loading}
+                          className="p-2 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 active:scale-95 transition-all shrink-0">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                   {/* Split breakdown */}
@@ -675,16 +673,16 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                         <div key={s.user_id} className="flex items-center gap-1.5 bg-muted/20 px-2 py-0.5 rounded-lg border border-border/40 shrink-0">
                           <span>
                             <span className="font-semibold text-foreground">{name}</span>
-                            {isPayer ? ` paid total ${fmt(exp.amount)}` : ` owes ${fmt(s.amount_owed)}`}
+                            {isPayer ? ` paid total ${fmt(exp.amount)}` : ` ${name === "You" ? "owe" : "owes"} ${fmt(s.amount_owed)}`}
                           </span>
-                          {!isPayer && (
+                          {!isPayer && s.amount_owed > 0 && (
                             <span className={`text-[9px] font-bold px-1 rounded ${
                               s.is_settled ? "text-emerald-500 bg-emerald-500/10" : "text-orange-500 bg-orange-500/10"
                             }`}>
                               {s.is_settled ? "Paid" : "Unpaid"}
                             </span>
                           )}
-                          {!isPayer && isPayerOrDebtor && (
+                          {!isPayer && s.amount_owed > 0 && isPayerOrDebtor && (
                             <button
                               type="button"
                               disabled={loading}
@@ -841,6 +839,11 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
 
                   {/* Members & amounts */}
                   <div className="space-y-2">
+                    {splitType === "custom" && (
+                      <p className="text-[11px] text-muted-foreground mb-1.5 px-1 font-semibold">
+                        Enter each person's share (amount owed) of this expense:
+                      </p>
+                    )}
                     {activeMembers.map(member => (
                       <div key={member.user_id} className="flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-muted/50">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${colorFor(member.user_id)}`}>
