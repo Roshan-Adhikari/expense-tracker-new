@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import {
   DollarSign, TrendingUp, ArrowUpRight, ArrowDownLeft,
-  Plus, Receipt, Users, ChevronRight, Zap, X,
+  Plus, Receipt, Users, ChevronRight, Zap, X, Pencil, Trash2, Check,
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -53,13 +53,23 @@ export function DashboardClient({
   const [budgets, setBudgets] = useState<Record<string, number>>({});
   const [budgetModal, setBudgetModal] = useState(false);
 
-  // Load budgets from localStorage on mount
+  // Custom categories stored in localStorage
+  const [customCategories, setCustomCategories] = useState<Record<string, string>>({}); // name -> emoji
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatEmoji, setNewCatEmoji] = useState("🏷️");
+  const [editingCat, setEditingCat] = useState<string | null>(null);
+  const [editCatName, setEditCatName] = useState("");
+  const [editCatEmoji, setEditCatEmoji] = useState("");
+
+  const COMMON_EMOJIS = ["🏷️","🎯","💼","🎁","🐾","🎨","📱","🎶","🏋️","🍕","☕","🚀","💰","🎓","🧴","🏖️","🎲","🐶","🌿","🏥"];
+
+  // Load budgets and custom categories from localStorage
   useEffect(() => {
     try {
       const stored = localStorage.getItem("category_budgets");
-      if (stored) {
-        setBudgets(JSON.parse(stored));
-      }
+      if (stored) setBudgets(JSON.parse(stored));
+      const storedCats = localStorage.getItem("custom_categories");
+      if (storedCats) setCustomCategories(JSON.parse(storedCats));
     } catch (e) {
       console.error("Failed to load budgets", e);
     }
@@ -67,12 +77,51 @@ export function DashboardClient({
 
   const handleSaveBudget = (category: string, limit: number) => {
     const updated = { ...budgets, [category]: limit };
-    if (limit <= 0) {
-      delete updated[category];
-    }
+    if (limit <= 0) delete updated[category];
     setBudgets(updated);
     localStorage.setItem("category_budgets", JSON.stringify(updated));
   };
+
+  const handleAddCategory = () => {
+    if (!newCatName.trim()) return;
+    const name = newCatName.trim();
+    const updated = { ...customCategories, [name]: newCatEmoji };
+    setCustomCategories(updated);
+    localStorage.setItem("custom_categories", JSON.stringify(updated));
+    setNewCatName(""); setNewCatEmoji("🏷️");
+  };
+
+  const handleDeleteCustomCategory = (name: string) => {
+    const updated = { ...customCategories };
+    delete updated[name];
+    setCustomCategories(updated);
+    localStorage.setItem("custom_categories", JSON.stringify(updated));
+    const updatedBudgets = { ...budgets };
+    delete updatedBudgets[name];
+    setBudgets(updatedBudgets);
+    localStorage.setItem("category_budgets", JSON.stringify(updatedBudgets));
+  };
+
+  const handleSaveEditCategory = (oldName: string) => {
+    if (!editCatName.trim()) return;
+    const newName = editCatName.trim();
+    const updated = { ...customCategories };
+    delete updated[oldName];
+    updated[newName] = editCatEmoji;
+    setCustomCategories(updated);
+    localStorage.setItem("custom_categories", JSON.stringify(updated));
+    // Migrate budget
+    if (budgets[oldName]) {
+      const updatedB = { ...budgets, [newName]: budgets[oldName] };
+      delete updatedB[oldName];
+      setBudgets(updatedB);
+      localStorage.setItem("category_budgets", JSON.stringify(updatedB));
+    }
+    setEditingCat(null);
+  };
+
+  // Merged category icons (built-in + custom)
+  const allCategoryIcons = { ...CATEGORY_ICONS, ...customCategories };
 
   const netBalance = totalOwedToMe - totalIOwe;
   const firstName = profile?.full_name?.split(" ")[0] || "there";
@@ -337,23 +386,25 @@ export function DashboardClient({
                   </button>
                 </div>
 
-                <div className="space-y-4 py-2">
+                {/* ─── Built-in Categories ─── */}
+                <div className="space-y-2 py-2">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-3">Default Categories</p>
                   {Object.keys(CATEGORY_ICONS).map((cat) => {
                     const currentVal = budgets[cat] || "";
                     return (
-                      <div key={cat} className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-2 min-w-0">
+                      <div key={cat} className="flex items-center justify-between gap-3 bg-muted/30 rounded-xl px-3 py-2.5 border border-border/50">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <span className="text-xl">{CATEGORY_ICONS[cat]}</span>
                           <span className="text-xs font-semibold truncate">{cat}</span>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[10px] text-muted-foreground font-semibold">₹</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[10px] text-muted-foreground font-bold">₹</span>
                           <input
                             type="number"
                             placeholder="No Limit"
                             value={currentVal}
                             onChange={(e) => handleSaveBudget(cat, Number(e.target.value))}
-                            className="w-24 px-2 py-1 text-xs rounded-xl bg-muted border border-border/50 text-right focus:outline-none focus:border-primary font-bold"
+                            className="w-24 px-2 py-1 text-xs rounded-xl bg-background border border-border text-right focus:outline-none focus:border-primary font-bold"
                           />
                         </div>
                       </div>
@@ -361,8 +412,114 @@ export function DashboardClient({
                   })}
                 </div>
 
+                {/* ─── Custom Categories ─── */}
+                {Object.keys(customCategories).length > 0 && (
+                  <div className="space-y-2 py-2 border-t border-border mt-2">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-3">Your Custom Categories</p>
+                    {Object.entries(customCategories).map(([cat, emoji]) => {
+                      const currentVal = budgets[cat] || "";
+                      const isEditing = editingCat === cat;
+                      return (
+                        <div key={cat} className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5 space-y-2">
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <div className="flex gap-2">
+                                <input
+                                  value={editCatEmoji}
+                                  onChange={e => setEditCatEmoji(e.target.value)}
+                                  className="w-14 text-center px-2 py-1.5 text-sm rounded-xl bg-background border border-border focus:outline-none focus:border-primary"
+                                  maxLength={2}
+                                />
+                                <input
+                                  value={editCatName}
+                                  onChange={e => setEditCatName(e.target.value)}
+                                  className="flex-1 px-3 py-1.5 text-xs rounded-xl bg-background border border-border focus:outline-none focus:border-primary font-semibold"
+                                />
+                              </div>
+                              <div className="flex gap-1.5 flex-wrap">
+                                {COMMON_EMOJIS.map(e => (
+                                  <button key={e} type="button" onClick={() => setEditCatEmoji(e)}
+                                    className={`text-base p-1 rounded-lg transition-all ${editCatEmoji === e ? "bg-primary/20 scale-110" : "hover:bg-muted"}`}>{e}</button>
+                                ))}
+                              </div>
+                              <div className="flex gap-2">
+                                <button onClick={() => handleSaveEditCategory(cat)}
+                                  className="flex-1 py-1.5 text-[11px] font-bold bg-primary text-white rounded-xl flex items-center justify-center gap-1">
+                                  <Check className="w-3 h-3" /> Save
+                                </button>
+                                <button onClick={() => setEditingCat(null)}
+                                  className="flex-1 py-1.5 text-[11px] font-bold bg-muted text-muted-foreground rounded-xl">
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="text-xl">{emoji}</span>
+                                <span className="text-xs font-semibold truncate">{cat}</span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-[10px] text-muted-foreground font-bold">₹</span>
+                                <input
+                                  type="number"
+                                  placeholder="No Limit"
+                                  value={currentVal}
+                                  onChange={(e) => handleSaveBudget(cat, Number(e.target.value))}
+                                  className="w-20 px-2 py-1 text-xs rounded-xl bg-background border border-border text-right focus:outline-none focus:border-primary font-bold"
+                                />
+                                <button onClick={() => { setEditingCat(cat); setEditCatName(cat); setEditCatEmoji(emoji); }}
+                                  className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all">
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                                <button onClick={() => handleDeleteCustomCategory(cat)}
+                                  className="p-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all">
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* ─── Add New Category ─── */}
+                <div className="border-t border-border mt-2 pt-4">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-3">Add New Category</p>
+                  <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 space-y-3">
+                    <div className="flex gap-2">
+                      <input
+                        value={newCatEmoji}
+                        onChange={e => setNewCatEmoji(e.target.value)}
+                        className="w-14 text-center px-2 py-2 text-sm rounded-xl bg-background border border-border focus:outline-none focus:border-primary"
+                        maxLength={2}
+                        placeholder="🏷️"
+                      />
+                      <input
+                        value={newCatName}
+                        onChange={e => setNewCatName(e.target.value)}
+                        onKeyDown={e => e.key === "Enter" && handleAddCategory()}
+                        placeholder="Category name..."
+                        className="flex-1 px-3 py-2 text-xs rounded-xl bg-background border border-border focus:outline-none focus:border-primary font-semibold"
+                      />
+                    </div>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {COMMON_EMOJIS.map(e => (
+                        <button key={e} type="button" onClick={() => setNewCatEmoji(e)}
+                          className={`text-base p-1 rounded-lg transition-all ${newCatEmoji === e ? "bg-primary/20 scale-110" : "hover:bg-muted"}`}>{e}</button>
+                      ))}
+                    </div>
+                    <button onClick={handleAddCategory} disabled={!newCatName.trim()}
+                      className="w-full py-2 text-[11px] font-bold bg-primary text-white rounded-xl disabled:opacity-40 flex items-center justify-center gap-1.5 transition-all">
+                      <Plus className="w-3.5 h-3.5" /> Add Category
+                    </button>
+                  </div>
+                </div>
+
                 <button onClick={() => setBudgetModal(false)}
-                  className="w-full mt-6 py-3 rounded-2xl bg-primary text-white text-xs font-bold fab-glow active:scale-[0.98] transition-transform">
+                  className="w-full mt-4 py-3 rounded-2xl bg-primary text-white text-xs font-bold fab-glow active:scale-[0.98] transition-transform">
                   Done
                 </button>
               </div>
