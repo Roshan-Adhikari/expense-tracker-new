@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { GroupsClient } from "./groups-client";
@@ -99,14 +100,16 @@ export default async function GroupsPage() {
   }));
 
   return (
-    <GroupsClient
-      userId={user.id}
-      groups={groups ?? []}
-      allMembers={formattedMembers}
-      allExpenses={formattedExpenses}
-      allSplits={allSplits ?? []}
-      friends={formattedFriends}
-      activityLogs={formattedLogs}
-    />
+    <Suspense fallback={null}>
+      <GroupsClient
+        userId={user.id}
+        groups={groups ?? []}
+        allMembers={formattedMembers}
+        allExpenses={formattedExpenses}
+        allSplits={allSplits ?? []}
+        friends={formattedFriends}
+        activityLogs={formattedLogs}
+      />
+    </Suspense>
   );
 }

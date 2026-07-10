@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Plus, Users, Receipt, ChevronRight, Check, Trash2, Pencil, Activity } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis } from "recharts";
 import { createClient } from "@/utils/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Sheet } from "@/components/sheet";
 import { CATEGORY_ICONS, CHART_COLORS } from "@/lib/constants";
 import { fmt, colorFor, initials } from "@/lib/format";
@@ -71,6 +71,24 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
   useEffect(() => setLocalExpenses(allExpenses), [allExpenses]);
   useEffect(() => setLocalSplits(allSplits), [allSplits]);
   useEffect(() => setLocalLogs(activityLogs), [activityLogs]);
+
+  // Deep link: ?group=GROUP_ID&expense=EXPENSE_ID
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const groupParam = searchParams.get("group");
+    const expenseParam = searchParams.get("expense");
+    if (!groupParam) return;
+    setActiveGroupId(groupParam);
+    setView("detail");
+    if (expenseParam) {
+      // Wait for state to settle, then open the edit sheet
+      setTimeout(() => {
+        const expense = allExpenses.find(e => e.id === expenseParam);
+        if (expense) openEditExpense(expense);
+      }, 100);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const logActivity = (action: string, details: any, gId: string = activeGroupId!) => {
     if (!gId) return;

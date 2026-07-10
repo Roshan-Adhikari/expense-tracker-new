@@ -316,7 +316,9 @@ export function DashboardClient({
             ) : (
               <AnimatePresence>
                 {allRecent.map((exp, i) => {
-                  const href = exp.group_id ? "/groups" : "/expenses";
+                  const href = exp.group_id
+                    ? `/groups?group=${exp.group_id}&expense=${exp.id}`
+                    : "/expenses";
                   return (
                   <Link key={exp.id} href={href}
                     className="flex items-center px-4 py-3.5 gap-3 hover:bg-muted/40 active:bg-muted/60 transition-colors cursor-pointer">
