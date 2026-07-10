@@ -315,10 +315,8 @@ export function DashboardClient({
             ) : (
               <AnimatePresence>
                 {allRecent.map((exp, i) => (
-                  <motion.div key={exp.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1, transition: { delay: i * 0.04 } }}
-                    className="flex items-center px-4 py-3.5 gap-3 active:bg-muted/50 transition-colors">
+                  <Link key={exp.id} href="/expenses"
+                    className="flex items-center px-4 py-3.5 gap-3 hover:bg-muted/40 active:bg-muted/60 transition-colors cursor-pointer">
                     <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-lg border shrink-0 ${CATEGORY_COLORS[exp.category] || CATEGORY_COLORS.General}`}>
                       {CATEGORY_ICONS[exp.category] || "📦"}
                     </div>
@@ -336,7 +334,7 @@ export function DashboardClient({
                     <p className="text-sm font-bold shrink-0">
                       -{fmt(exp.amount)}
                     </p>
-                  </motion.div>
+                  </Link>
                 ))}
               </AnimatePresence>
             )}
@@ -391,22 +389,46 @@ export function DashboardClient({
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-3">Default Categories</p>
                   {Object.keys(CATEGORY_ICONS).map((cat) => {
                     const currentVal = budgets[cat] || "";
+                    const isEditing = editingCat === cat;
                     return (
-                      <div key={cat} className="flex items-center justify-between gap-3 bg-muted/30 rounded-xl px-3 py-2.5 border border-border/50">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="text-xl">{CATEGORY_ICONS[cat]}</span>
-                          <span className="text-xs font-semibold truncate">{cat}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-[10px] text-muted-foreground font-bold">₹</span>
-                          <input
-                            type="number"
-                            placeholder="No Limit"
-                            value={currentVal}
-                            onChange={(e) => handleSaveBudget(cat, Number(e.target.value))}
-                            className="w-24 px-2 py-1 text-xs rounded-xl bg-background border border-border text-right focus:outline-none focus:border-primary font-bold"
-                          />
-                        </div>
+                      <div key={cat} className="rounded-xl border border-border/50 bg-muted/30 px-3 py-2.5 space-y-2">
+                        {isEditing ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">{CATEGORY_ICONS[cat]}</span>
+                            <span className="text-xs font-semibold flex-1">{cat}</span>
+                            <span className="text-[10px] text-muted-foreground font-bold">₹</span>
+                            <input
+                              type="number"
+                              placeholder="No Limit"
+                              value={currentVal}
+                              autoFocus
+                              onChange={(e) => handleSaveBudget(cat, Number(e.target.value))}
+                              className="w-24 px-2 py-1 text-xs rounded-xl bg-background border border-primary text-right focus:outline-none font-bold"
+                            />
+                            <button onClick={() => setEditingCat(null)}
+                              className="p-1.5 rounded-lg bg-primary text-white transition-all">
+                              <Check className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="text-xl">{CATEGORY_ICONS[cat]}</span>
+                              <span className="text-xs font-semibold truncate">{cat}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${
+                                currentVal ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                              }`}>
+                                {currentVal ? `₹${Number(currentVal).toLocaleString()}` : "No Limit"}
+                              </span>
+                              <button onClick={() => setEditingCat(cat)}
+                                className="p-1.5 rounded-lg bg-muted hover:bg-primary/10 hover:text-primary text-muted-foreground transition-all">
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
