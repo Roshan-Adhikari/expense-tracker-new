@@ -10,6 +10,7 @@ import { twMerge } from "tailwind-merge";
 import clsx from "clsx";
 import { UserMenu } from "@/components/user-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
+import NProgress from "nprogress";
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -56,6 +57,8 @@ export function Sidebar() {
             <Link
               key={name}
               href={href}
+              prefetch={true}
+              onClick={() => { if (!active) NProgress.start(); }}
               className={cn(
                 "flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group",
                 active
@@ -135,6 +138,8 @@ export function BottomNav() {
             <Link
               key={name}
               href={href}
+              prefetch={true}
+              onClick={() => { if (!active) NProgress.start(); }}
               className="flex flex-col items-center justify-center flex-1 h-full gap-0.5 relative"
             >
               {/* Active pill indicator */}

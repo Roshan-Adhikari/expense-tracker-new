@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Sidebar, BottomNav, MobileHeader } from "@/components/navigation";
+import { NavigationProgress } from "@/components/navigation-progress";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -54,6 +55,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen flex flex-col md:flex-row bg-background text-foreground overflow-x-hidden">
+        <NavigationProgress />
         <Sidebar />
         <div className="flex flex-col flex-1 min-w-0 min-h-screen md:min-h-0">
           <MobileHeader />
