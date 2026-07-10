@@ -17,6 +17,7 @@ interface Expense {
   amount: number;
   category: string;
   date: string;
+  group_id?: string | null;
   groups?: { name: string } | null;
 }
 
@@ -314,8 +315,10 @@ export function DashboardClient({
               </div>
             ) : (
               <AnimatePresence>
-                {allRecent.map((exp, i) => (
-                  <Link key={exp.id} href="/expenses"
+                {allRecent.map((exp, i) => {
+                  const href = exp.group_id ? "/groups" : "/expenses";
+                  return (
+                  <Link key={exp.id} href={href}
                     className="flex items-center px-4 py-3.5 gap-3 hover:bg-muted/40 active:bg-muted/60 transition-colors cursor-pointer">
                     <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-lg border shrink-0 ${CATEGORY_COLORS[exp.category] || CATEGORY_COLORS.General}`}>
                       {CATEGORY_ICONS[exp.category] || "📦"}
@@ -335,7 +338,8 @@ export function DashboardClient({
                       -{fmt(exp.amount)}
                     </p>
                   </Link>
-                ))}
+                  );
+                })}
               </AnimatePresence>
             )}
           </div>
