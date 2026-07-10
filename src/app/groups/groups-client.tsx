@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Users, Receipt, ChevronRight, Check, X, DollarSign, User as UserIcon } from "lucide-react";
+import { Plus, Users, Receipt, ChevronRight, Check, X, DollarSign, User as UserIcon, Trash2 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 
@@ -135,6 +135,18 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
     setEDesc(""); setEAmount(""); setECat("General"); setCustomSplits({}); setEPaidBy(userId);
     setLoading(false);
     startTransition(() => router.refresh());
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this expense?")) return;
+    setLoading(true);
+    const { error } = await supabase.from("expenses").delete().eq("id", id);
+    if (error) {
+      alert("Failed to delete expense: " + error.message);
+    } else {
+      startTransition(() => router.refresh());
+    }
+    setLoading(false);
   };
 
   const toggleFriend = (fid: string) =>
@@ -361,11 +373,19 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                         </p>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-sm font-bold">{fmt(exp.amount)}</p>
-                      {mySplit && <p className={`text-xs font-semibold mt-0.5 ${iPaid ? "text-emerald-500" : "text-orange-500"}`}>
-                        {iPaid ? `+${fmt(exp.amount - mySplit.amount_owed)}` : `-${fmt(mySplit.amount_owed)}`}
-                      </p>}
+                    <div className="text-right shrink-0 flex items-center gap-3">
+                      <div>
+                        <p className="text-sm font-bold">{fmt(exp.amount)}</p>
+                        {mySplit && <p className={`text-xs font-semibold mt-0.5 ${iPaid ? "text-emerald-500" : "text-orange-500"}`}>
+                          {iPaid ? `+${fmt(exp.amount - mySplit.amount_owed)}` : `-${fmt(mySplit.amount_owed)}`}
+                        </p>}
+                      </div>
+                      {iPaid && (
+                        <button onClick={() => handleDeleteExpense(exp.id)} disabled={loading}
+                          className="p-2 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 active:scale-95 transition-all shrink-0">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   {/* Split breakdown */}

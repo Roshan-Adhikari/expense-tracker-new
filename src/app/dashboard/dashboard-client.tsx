@@ -88,10 +88,7 @@ export function DashboardClient({
 }: DashboardClientProps) {
   const router = useRouter();
 
-  // Force fresh data on mount when navigating via client router
-  useEffect(() => {
-    router.refresh();
-  }, [router]);
+
 
   const netBalance = totalOwedToMe - totalIOwe;
   const firstName = profile?.full_name?.split(" ")[0] || "there";
@@ -120,37 +117,35 @@ export function DashboardClient({
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="relative z-10">
           <p className="text-white/70 text-sm font-medium mb-1">Good to see you, {firstName} 👋</p>
-          <p className="text-white/60 text-xs mb-5">Total Personal Spending</p>
+          <p className="text-white/60 text-xs mb-5">Net Balance</p>
           <div className="flex items-end gap-2 mb-6">
-            <span className="text-white font-black text-5xl tracking-tight">{fmt(totalPersonal)}</span>
+            <span className="text-white font-black text-5xl tracking-tight">
+              {netBalance >= 0 ? "+" : "-"}{fmt(Math.abs(netBalance))}
+            </span>
           </div>
 
           {/* Mini stat row */}
           <div className="flex gap-3">
             <div className="flex-1 bg-white/10 rounded-2xl px-3 py-2.5 backdrop-blur-sm border border-white/10">
               <div className="flex items-center gap-1.5 mb-1">
+                <Receipt className="w-3.5 h-3.5 text-white/75" />
+                <span className="text-white/70 text-[9px] font-bold uppercase tracking-wide">Personal Spend</span>
+              </div>
+              <p className="text-white font-black text-sm">{fmt(totalPersonal)}</p>
+            </div>
+            <div className="flex-1 bg-white/10 rounded-2xl px-3 py-2.5 backdrop-blur-sm border border-white/10">
+              <div className="flex items-center gap-1.5 mb-1">
                 <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-300" />
-                <span className="text-white/70 text-[9px] font-bold uppercase tracking-wide">Lent (Receive)</span>
+                <span className="text-white/70 text-[9px] font-bold uppercase tracking-wide">You Lent</span>
               </div>
               <p className="text-emerald-300 font-black text-sm">{fmt(totalOwedToMe)}</p>
             </div>
             <div className="flex-1 bg-white/10 rounded-2xl px-3 py-2.5 backdrop-blur-sm border border-white/10">
               <div className="flex items-center gap-1.5 mb-1">
                 <ArrowUpRight className="w-3.5 h-3.5 text-red-300" />
-                <span className="text-white/70 text-[9px] font-bold uppercase tracking-wide">Borrowed (Pay)</span>
+                <span className="text-white/70 text-[9px] font-bold uppercase tracking-wide">You Owe</span>
               </div>
               <p className="text-red-300 font-black text-sm">{fmt(totalIOwe)}</p>
-            </div>
-            <div className={`flex-1 rounded-2xl px-3 py-2.5 backdrop-blur-sm border border-white/10 ${netBalance >= 0 ? "bg-emerald-500/20" : "bg-red-500/20"}`}>
-              <div className="flex items-center gap-1.5 mb-1">
-                <TrendingUp className={`w-3.5 h-3.5 ${netBalance >= 0 ? "text-emerald-300" : "text-red-300"}`} />
-                <span className={`text-[9px] font-bold uppercase tracking-wide ${netBalance >= 0 ? "text-emerald-300" : "text-red-300"}`}>
-                  {netBalance >= 0 ? "You Receive" : "You Pay"}
-                </span>
-              </div>
-              <p className={`font-black text-sm ${netBalance >= 0 ? "text-emerald-300" : "text-red-300"}`}>
-                {fmt(Math.abs(netBalance))}
-              </p>
             </div>
           </div>
         </motion.div>
