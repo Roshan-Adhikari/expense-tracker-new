@@ -81,9 +81,15 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
   const [customSplits, setCustomSplits] = useState<Record<string,string>>({});
   const [editedSplits, setEditedSplits] = useState<Record<string, boolean>>({});
 
+  const [localExpenses, setLocalExpenses] = useState(allExpenses);
+  const [localSplits, setLocalSplits] = useState(allSplits);
+
+  useEffect(() => setLocalExpenses(allExpenses), [allExpenses]);
+  useEffect(() => setLocalSplits(allSplits), [allSplits]);
+
   const activeGroup = groups.find(g => g.id === activeGroupId);
   const activeMembers = allMembers.filter(m => m.group_id === activeGroupId);
-  const activeExpenses = allExpenses.filter(e => e.group_id === activeGroupId);
+  const activeExpenses = localExpenses.filter(e => e.group_id === activeGroupId);
 
   // Auto-balance splits when Total Amount changes
   useEffect(() => {
@@ -187,6 +193,9 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
       ? activeMembers.map(m => ({ expense_id: expense.id, user_id: m.user_id, amount_owed: parseFloat((amountNum / activeMembers.length).toFixed(2)), is_settled: m.user_id === ePaidBy }))
       : activeMembers.map(m => ({ expense_id: expense.id, user_id: m.user_id, amount_owed: parseFloat(customSplits[m.user_id] || "0"), is_settled: m.user_id === ePaidBy }));
 
+    setLocalExpenses(prev => [expense, ...prev]);
+    setLocalSplits(prev => [...splits, ...prev]);
+
     const { error: splitsError } = await supabase.from("expense_splits").insert(splits);
     if (splitsError) {
       alert("Failed to add expense splits: " + splitsError.message);
@@ -220,9 +229,13 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
   const handleDeleteExpense = async (id: string) => {
     if (!confirm("Are you sure you want to delete this expense?")) return;
     setLoading(true);
+    setLocalExpenses(prev => prev.filter(e => e.id !== id));
+    setLocalSplits(prev => prev.filter(s => s.expense_id !== id));
+
     const { error } = await supabase.from("expenses").delete().eq("id", id);
     if (error) {
       alert("Failed to delete expense: " + error.message);
+      startTransition(() => router.refresh());
     } else {
       startTransition(() => router.refresh());
     }
@@ -231,6 +244,9 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
 
   const handleSettleSplit = async (expenseId: string, debtorId: string, currentSettleState: boolean) => {
     setLoading(true);
+    setLocalSplits(prev => prev.map(s => 
+      s.expense_id === expenseId && s.user_id === debtorId ? { ...s, is_settled: !currentSettleState } : s
+    ));
     const { error } = await supabase
       .from("expense_splits")
       .update({ is_settled: !currentSettleState })
@@ -239,6 +255,9 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
 
     if (error) {
       alert("Failed to update settlement: " + error.message);
+      setLocalSplits(prev => prev.map(s => 
+        s.expense_id === expenseId && s.user_id === debtorId ? { ...s, is_settled: currentSettleState } : s
+      ));
     } else {
       startTransition(() => router.refresh());
     }
@@ -279,7 +298,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
             <div className="rounded-3xl overflow-hidden card-shadow border border-border bg-card divide-y divide-border mb-6">
               {groups.map(group => {
                 const members = allMembers.filter(m => m.group_id === group.id);
-                const expenses = allExpenses.filter(e => e.group_id === group.id);
+                const expenses = localExpenses.filter(e => e.group_id === group.id);
                 const total = expenses.reduce((s, e) => s + e.amount, 0);
                 return (
                   <motion.button key={group.id} layout onClick={() => openDetail(group.id)}
@@ -381,7 +400,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
   }
 
   // ─── GROUP DETAIL VIEW ───
-  const myShare = allSplits
+  const myShare = localSplits
     .filter(s => s.user_id === userId && activeExpenses.some(e => e.id === s.expense_id))
     .reduce((sum, s) => sum + s.amount_owed, 0);
   const groupTotal = activeExpenses.reduce((s, e) => s + e.amount, 0);
@@ -527,7 +546,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
         ) : (
           <div className="rounded-3xl overflow-hidden card-shadow border border-border bg-card divide-y divide-border mb-6">
             {activeExpenses.map(exp => {
-              const splits = allSplits.filter(s => s.expense_id === exp.id);
+              const splits = localSplits.filter(s => s.expense_id === exp.id);
               const mySplit = splits.find(s => s.user_id === userId);
               const iPaid = exp.paid_by === userId;
               return (
