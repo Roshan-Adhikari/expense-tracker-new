@@ -373,8 +373,8 @@ export function DashboardClient({
               className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={() => setBudgetModal(false)} />
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ duration: 0.15, ease: "easeOut" }}
-              className="fixed bottom-0 left-0 right-0 z-50 bottom-sheet bg-card pb-safe max-h-[85vh] overflow-y-auto">
-              <div className="p-5">
+              className="fixed bottom-0 left-0 right-0 z-50 bottom-sheet bg-card max-h-[85vh] overflow-y-auto">
+              <div className="p-5 pb-24 md:pb-8">
                 <div className="flex items-center justify-between mb-4 border-b border-border pb-3">
                   <div>
                     <h3 className="font-bold text-base">Configure Budgets</h3>
