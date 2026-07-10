@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Users, Receipt, ChevronRight, Check, X, DollarSign, User as UserIcon, Trash2 } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis } from "recharts";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 
@@ -33,6 +34,17 @@ function fmt(n: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(n);
 }
 
+const CHART_COLORS: Record<string, string> = {
+  Food: "#f97316",
+  Transport: "#3b82f6",
+  Entertainment: "#a855f7",
+  Shopping: "#ec4899",
+  Health: "#22c55e",
+  Housing: "#eab308",
+  Travel: "#0ea5e9",
+  General: "#6b7280",
+};
+
 interface Props {
   userId: string; groups: Group[]; allMembers: GroupMember[];
   allExpenses: GroupExpense[]; allSplits: ExpenseSplit[]; friends: Friend[];
@@ -51,6 +63,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
   const [groupSheet, setGroupSheet] = useState(false);
   const [expenseSheet, setExpenseSheet] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [chartType, setChartType] = useState<"pie" | "bar">("pie");
 
   // Group form
   const [gName, setGName] = useState("");
@@ -289,6 +302,18 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
     .filter(s => s.user_id === userId && activeExpenses.some(e => e.id === s.expense_id))
     .reduce((sum, s) => sum + s.amount_owed, 0);
   const groupTotal = activeExpenses.reduce((s, e) => s + e.amount, 0);
+  const myPaid = activeExpenses
+    .filter(e => e.paid_by === userId)
+    .reduce((sum, e) => sum + e.amount, 0);
+  const netGroupBalance = myPaid - myShare;
+
+  const byCategory = activeExpenses.reduce<Record<string, number>>((acc, e) => {
+    acc[e.category] = (acc[e.category] || 0) + e.amount;
+    return acc;
+  }, {});
+  const groupChartData = Object.entries(byCategory)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
 
   return (
     <div className="min-h-full bg-background">
@@ -305,14 +330,20 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
       </div>
 
       {/* Summary cards */}
-      <div className="px-4 pb-3 grid grid-cols-2 gap-3">
-        <div className="rounded-2xl bg-card border border-border p-3.5 card-shadow">
-          <p className="text-xs text-muted-foreground mb-1">Group Total</p>
-          <p className="text-xl font-black">{fmt(groupTotal)}</p>
+      <div className="px-4 pb-3 grid grid-cols-3 gap-2">
+        <div className="rounded-2xl bg-card border border-border p-3 card-shadow">
+          <p className="text-[10px] text-muted-foreground mb-1">Group Total</p>
+          <p className="text-sm font-black truncate">{fmt(groupTotal)}</p>
         </div>
-        <div className="rounded-2xl bg-primary/10 border border-primary/20 p-3.5 card-shadow">
-          <p className="text-xs text-muted-foreground mb-1">Your Share</p>
-          <p className="text-xl font-black text-primary">{fmt(myShare)}</p>
+        <div className="rounded-2xl bg-card border border-border p-3 card-shadow">
+          <p className="text-[10px] text-muted-foreground mb-1">Your Share</p>
+          <p className="text-sm font-black text-primary truncate">{fmt(myShare)}</p>
+        </div>
+        <div className={`rounded-2xl p-3 border card-shadow ${netGroupBalance >= 0 ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-red-500/10 border-red-500/20 text-red-500"}`}>
+          <p className="text-[10px] text-muted-foreground mb-1">{netGroupBalance >= 0 ? "You're Owed" : "You Owe"}</p>
+          <p className="text-sm font-black truncate">
+            {netGroupBalance >= 0 ? "+" : ""}{fmt(netGroupBalance)}
+          </p>
         </div>
       </div>
 
@@ -332,6 +363,63 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
           </div>
         </div>
       </div>
+
+      {/* Analytics Section */}
+      {activeExpenses.length > 0 && (
+        <div className="px-4 mb-4">
+          <div className="rounded-2xl bg-card border border-border p-4 card-shadow">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-xs font-bold text-muted-foreground">Group Spending Analytics</p>
+              <div className="flex gap-1 bg-muted p-0.5 rounded-lg text-[10px] font-bold border border-border/30">
+                <button type="button" onClick={() => setChartType("pie")}
+                  className={`px-2.5 py-1 rounded-md transition-all ${chartType === "pie" ? "bg-card text-foreground card-shadow" : "text-muted-foreground"}`}>
+                  Pie
+                </button>
+                <button type="button" onClick={() => setChartType("bar")}
+                  className={`px-2.5 py-1 rounded-md transition-all ${chartType === "bar" ? "bg-card text-foreground card-shadow" : "text-muted-foreground"}`}>
+                  Bar
+                </button>
+              </div>
+            </div>
+
+            <div className="h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                {chartType === "pie" ? (
+                  <PieChart>
+                    <Pie
+                      data={groupChartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={30}
+                      outerRadius={45}
+                      paddingAngle={4}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {groupChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={CHART_COLORS[entry.name] || "#6b7280"} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => fmt(Number(value))} contentStyle={{ borderRadius: '12px', border: 'none', backgroundColor: 'var(--card)', color: 'var(--foreground)', fontSize: '10px' }} />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
+                  </PieChart>
+                ) : (
+                  <BarChart data={groupChartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                    <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={9} tickLine={false} axisLine={false} />
+                    <YAxis stroke="var(--muted-foreground)" fontSize={9} tickLine={false} axisLine={false} />
+                    <Tooltip formatter={(value) => fmt(Number(value))} contentStyle={{ borderRadius: '12px', border: 'none', backgroundColor: 'var(--card)', color: 'var(--foreground)', fontSize: '10px' }} />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                      {groupChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={CHART_COLORS[entry.name] || "#6b7280"} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                )}
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Expenses */}
       <div className="px-4">
@@ -376,7 +464,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                     <div className="text-right shrink-0 flex items-center gap-3">
                       <div>
                         <p className="text-sm font-bold">{fmt(exp.amount)}</p>
-                        {mySplit && <p className={`text-xs font-semibold mt-0.5 ${iPaid ? "text-emerald-500" : "text-orange-500"}`}>
+                        {mySplit && <p className={`text-xs font-semibold mt-0.5 ${iPaid ? "text-emerald-500" : "text-red-500"}`}>
                           {iPaid ? `+${fmt(exp.amount - mySplit.amount_owed)}` : `-${fmt(mySplit.amount_owed)}`}
                         </p>}
                       </div>

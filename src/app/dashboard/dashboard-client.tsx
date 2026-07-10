@@ -119,8 +119,8 @@ export function DashboardClient({
           <p className="text-white/70 text-sm font-medium mb-1">Good to see you, {firstName} 👋</p>
           <p className="text-white/60 text-xs mb-5">Net Balance</p>
           <div className="flex items-end gap-2 mb-6">
-            <span className="text-white font-black text-5xl tracking-tight">
-              {netBalance >= 0 ? "+" : "-"}{fmt(Math.abs(netBalance))}
+            <span className={`font-black text-5xl tracking-tight ${netBalance > 0 ? "text-emerald-300" : netBalance < 0 ? "text-rose-300" : "text-white"}`}>
+              {netBalance > 0 ? "+" : netBalance < 0 ? "-" : ""}{fmt(Math.abs(netBalance))}
             </span>
           </div>
 
