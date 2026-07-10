@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Users, Receipt, ChevronRight, Check, X, DollarSign, User as UserIcon, Trash2 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis } from "recharts";
@@ -79,10 +79,68 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
   const [ePaidBy, setEPaidBy] = useState<string>(userId);
   const [splitType, setSplitType] = useState<"equal"|"custom">("equal");
   const [customSplits, setCustomSplits] = useState<Record<string,string>>({});
+  const [editedSplits, setEditedSplits] = useState<Record<string, boolean>>({});
 
   const activeGroup = groups.find(g => g.id === activeGroupId);
   const activeMembers = allMembers.filter(m => m.group_id === activeGroupId);
   const activeExpenses = allExpenses.filter(e => e.group_id === activeGroupId);
+
+  // Auto-balance splits when Total Amount changes
+  useEffect(() => {
+    if (splitType === "custom" && activeMembers.length > 0) {
+      const amountNum = Number(eAmount) || 0;
+      let editedSum = 0;
+      const uneditedIds: string[] = [];
+      activeMembers.forEach(m => {
+        if (editedSplits[m.user_id]) {
+          editedSum += Number(customSplits[m.user_id]) || 0;
+        } else {
+          uneditedIds.push(m.user_id);
+        }
+      });
+      if (uneditedIds.length > 0) {
+        const remaining = Math.max(0, amountNum - editedSum);
+        const splitAmount = (remaining / uneditedIds.length).toFixed(2);
+        setCustomSplits(prev => {
+          const newSplits = { ...prev };
+          uneditedIds.forEach(id => { newSplits[id] = splitAmount; });
+          return newSplits;
+        });
+      }
+    }
+  }, [eAmount, splitType, activeMembers.length]); // Intentionally omitting edited/customSplits
+
+  const handleCustomSplitChange = (changedUserId: string, value: string) => {
+    const amountNum = Number(eAmount) || 0;
+    const newEdited = { ...editedSplits, [changedUserId]: true };
+    setEditedSplits(newEdited);
+    
+    let editedSum = 0;
+    const uneditedIds: string[] = [];
+    
+    activeMembers.forEach(m => {
+      if (m.user_id === changedUserId) {
+        editedSum += Number(value) || 0;
+      } else if (newEdited[m.user_id]) {
+        editedSum += Number(customSplits[m.user_id]) || 0;
+      } else {
+        uneditedIds.push(m.user_id);
+      }
+    });
+    
+    const newSplits = { ...customSplits, [changedUserId]: value };
+    
+    if (uneditedIds.length > 0) {
+      const remaining = Math.max(0, amountNum - editedSum);
+      const splitAmount = (remaining / uneditedIds.length).toFixed(2);
+      uneditedIds.forEach(id => {
+        newSplits[id] = splitAmount;
+      });
+    }
+    
+    setCustomSplits(newSplits);
+  };
+
 
   const openDetail = (id: string) => { setActiveGroupId(id); setView("detail"); };
 
@@ -145,7 +203,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
     }
 
     setExpenseSheet(false);
-    setEDesc(""); setEAmount(""); setECat("General"); setCustomSplits({}); setEPaidBy(userId);
+    setEDesc(""); setEAmount(""); setECat("General"); setCustomSplits({}); setEditedSplits({}); setEPaidBy(userId);
     setLoading(false);
     startTransition(() => router.refresh());
   };
@@ -593,13 +651,34 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                   {/* Split toggle */}
                   <div>
                     <p className="text-xs text-muted-foreground font-medium mb-2">Split Method</p>
-                    <div className="flex bg-muted p-1 rounded-2xl">
+                    <div className="flex bg-muted p-1 rounded-2xl flex-wrap gap-1">
                       {(["equal","custom"] as const).map(type => (
-                        <button key={type} type="button" onClick={() => setSplitType(type)}
+                        <button key={type} type="button" 
+                          onClick={() => {
+                            setSplitType(type);
+                            if (type === "equal") {
+                              setEditedSplits({});
+                              setCustomSplits({});
+                            }
+                          }}
                           className={`flex-1 py-2 rounded-xl text-xs font-bold capitalize transition-all ${splitType===type ? "bg-card text-foreground card-shadow" : "text-muted-foreground"}`}>
                           {type === "equal" ? "Split Equally" : "Custom Split"}
                         </button>
                       ))}
+                      {activeMembers.length === 2 && (
+                        <button type="button" 
+                          onClick={() => {
+                            setSplitType("custom");
+                            const other = activeMembers.find(m => m.user_id !== ePaidBy)?.user_id;
+                            if (other) {
+                              setCustomSplits({ [ePaidBy]: "0", [other]: eAmount });
+                              setEditedSplits({ [ePaidBy]: true, [other]: true });
+                            }
+                          }}
+                          className="w-full mt-1 py-2 rounded-xl text-xs font-bold transition-all text-muted-foreground bg-muted hover:bg-muted-foreground/10">
+                          {ePaidBy === userId ? "They owe full amount" : "You owe full amount"}
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -622,7 +701,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">₹</span>
                             <input type="number" step="0.01" placeholder="0.00"
                               value={customSplits[member.user_id] || ""}
-                              onChange={e => setCustomSplits(prev=>({...prev,[member.user_id]:e.target.value}))}
+                              onChange={e => handleCustomSplitChange(member.user_id, e.target.value)}
                               className="w-full bg-background border border-border rounded-xl py-2 pr-2 pl-6 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-primary/50 text-right" />
                           </div>
                         )}
