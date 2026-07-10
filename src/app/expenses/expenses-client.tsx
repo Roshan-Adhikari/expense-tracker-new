@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, Receipt, Search, X } from "lucide-react";
+import { Plus, Trash2, Receipt, Search, X, Download, BarChart2, ChevronLeft, ChevronRight } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { Sheet } from "@/components/sheet";
 import { CATEGORIES, CATEGORY_ICONS, CATEGORY_COLORS } from "@/lib/constants";
 import { fmt, relDate } from "@/lib/format";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 interface Expense {
   id: string;
@@ -44,11 +45,55 @@ export function ExpensesClient({ expenses: initial, userId }: { expenses: Expens
   const [filterCat, setFilterCat] = useState("All");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
+  const [filterMonth, setFilterMonth] = useState<string | null>(null);
+  const [showChart, setShowChart] = useState(false);
+
   const totalAmount = expenses.reduce((s, e) => s + e.amount, 0);
+
+  // Monthly data for chart — last 12 months
+  const monthlyData = useMemo(() => {
+    const map: Record<string, number> = {};
+    expenses.forEach(e => {
+      const key = e.date.slice(0, 7); // "YYYY-MM"
+      map[key] = (map[key] || 0) + e.amount;
+    });
+    const sorted = Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).slice(-12);
+    return sorted.map(([key, total]) => ({
+      key,
+      label: new Date(key + "-01").toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
+      total,
+    }));
+  }, [expenses]);
 
   const filtered = expenses
     .filter(e => filterCat === "All" || e.category === filterCat)
+    .filter(e => !filterMonth || e.date.startsWith(filterMonth))
     .filter(e => !search || e.description.toLowerCase().includes(search.toLowerCase()));
+
+  const filteredTotal = filtered.reduce((s, e) => s + e.amount, 0);
+
+  // CSV Export
+  const handleDownloadCSV = () => {
+    const rows = [
+      ["Date", "Description", "Category", "Amount (INR)"],
+      ...filtered.map(e => [
+        e.date,
+        `"${e.description.replace(/"/g, '""')}"`,
+        e.category,
+        e.amount.toFixed(2),
+      ])
+    ];
+    const csv = rows.map(r => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const monthLabel = filterMonth ? `_${filterMonth}` : "";
+    const catLabel = filterCat !== "All" ? `_${filterCat}` : "";
+    a.download = `expenses${monthLabel}${catLabel}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const openAdd = () => {
     setEditingId(null);
@@ -113,16 +158,63 @@ export function ExpensesClient({ expenses: initial, userId }: { expenses: Expens
     <div className="min-h-full bg-background relative">
       {/* Stats bar */}
       <div className="px-4 pt-4 pb-3 space-y-4">
-        {/* Big total */}
-        <div className="rounded-3xl bg-gradient-to-br from-primary/10 to-accent/5 border border-primary/15 p-4 flex items-center justify-between card-shadow">
-          <div>
-            <p className="text-xs text-muted-foreground font-medium mb-0.5">Total Spending</p>
-            <p className="text-3xl font-black tracking-tight">{fmt(totalAmount)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{expenses.length} transaction{expenses.length !== 1 ? "s" : ""}</p>
+        {/* Big total + actions */}
+        <div className="rounded-3xl bg-gradient-to-br from-primary/10 to-accent/5 border border-primary/15 p-4 card-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground font-medium mb-0.5">
+                {filterMonth ? new Date(filterMonth + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" }) : "Total Spending"}
+              </p>
+              <p className="text-3xl font-black tracking-tight">{fmt(filterMonth ? filteredTotal : totalAmount)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{filtered.length} transaction{filtered.length !== 1 ? "s" : ""}</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button onClick={() => setShowChart(v => !v)}
+                className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+                  showChart ? "bg-primary text-white" : "bg-primary/20 text-primary"
+                }`}>
+                <BarChart2 className="w-5 h-5" />
+              </button>
+              <button onClick={handleDownloadCSV}
+                className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-500 flex items-center justify-center hover:bg-emerald-500/30 transition-all"
+                title="Download CSV">
+                <Download className="w-5 h-5" />
+              </button>
+            </div>
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-primary/20 flex items-center justify-center">
-            <Receipt className="w-7 h-7 text-primary" />
-          </div>
+
+          {/* Monthly Bar Chart */}
+          <AnimatePresence>
+            {showChart && monthlyData.length > 0 && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 180 }} exit={{ opacity: 0, height: 0 }}
+                className="mt-4 overflow-hidden">
+                <ResponsiveContainer width="100%" height={170}>
+                  <BarChart data={monthlyData} barSize={24} onClick={(d: any) => d?.activePayload && setFilterMonth((prev: string | null) => prev === d.activePayload[0].payload.key ? null : d.activePayload[0].payload.key)}>
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                    <YAxis hide />
+                    <Tooltip
+                      cursor={{ fill: "rgba(124,58,237,0.08)", radius: 8 }}
+                      contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 12 }}
+                      formatter={(v: any) => [fmt(Number(v)), "Spent"]}
+                    />
+                    <Bar dataKey="total" radius={[6, 6, 0, 0]}>
+                      {monthlyData.map((entry) => (
+                        <Cell key={entry.key}
+                          fill={filterMonth === entry.key ? "#7C3AED" : "rgba(124,58,237,0.35)"}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                {filterMonth && (
+                  <button onClick={() => setFilterMonth(null)}
+                    className="flex items-center gap-1 text-[11px] text-primary font-semibold mt-1 mx-auto">
+                    <X className="w-3 h-3" /> Clear month filter
+                  </button>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Search bar */}
@@ -140,6 +232,22 @@ export function ExpensesClient({ expenses: initial, userId }: { expenses: Expens
             </button>
           )}
         </div>
+
+        {/* Month filter pills (when chart is shown) */}
+        {showChart && monthlyData.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide" style={{ WebkitOverflowScrolling: "touch" }}>
+            <button onClick={() => setFilterMonth(null)}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                !filterMonth ? "bg-primary text-white border-primary" : "bg-card text-muted-foreground border-border"
+              }`}>All Months</button>
+            {monthlyData.map(m => (
+              <button key={m.key} onClick={() => setFilterMonth(prev => prev === m.key ? null : m.key)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                  filterMonth === m.key ? "bg-primary text-white border-primary" : "bg-card text-muted-foreground border-border"
+                }`}>{m.label}</button>
+            ))}
+          </div>
+        )}
 
         {/* Category filter chips */}
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide"
