@@ -162,6 +162,22 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
     setLoading(false);
   };
 
+  const handleSettleSplit = async (expenseId: string, debtorId: string, currentSettleState: boolean) => {
+    setLoading(true);
+    const { error } = await supabase
+      .from("expense_splits")
+      .update({ is_settled: !currentSettleState })
+      .eq("expense_id", expenseId)
+      .eq("user_id", debtorId);
+
+    if (error) {
+      alert("Failed to update settlement: " + error.message);
+    } else {
+      startTransition(() => router.refresh());
+    }
+    setLoading(false);
+  };
+
   const toggleFriend = (fid: string) =>
     setSelectedFriends(prev => prev.includes(fid) ? prev.filter(id=>id!==fid) : [...prev, fid]);
 
@@ -480,12 +496,41 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                   <div className="flex gap-1.5 mt-3 flex-wrap">
                     {splits.map(s => {
                       const mem = activeMembers.find(m => m.user_id === s.user_id);
-                      return (
-                        <div key={s.user_id} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-muted text-xs">
-                          <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white ${colorFor(s.user_id)}`}>
+                      const isPayerOrDebtor = exp.paid_by === userId || s.user_id === userId;
+                      const pillClass = `flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs transition-all ${
+                        s.is_settled 
+                          ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 opacity-60" 
+                          : "bg-muted border border-border text-foreground hover:bg-muted/80"
+                      } ${isPayerOrDebtor ? "cursor-pointer" : "cursor-default"}`;
+
+                      const Content = (
+                        <>
+                          <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[7px] font-bold text-white shrink-0 ${colorFor(s.user_id)}`}>
                             {mem?.profiles ? initials(mem.profiles.full_name, mem.profiles.email) : "?"}
                           </div>
-                          <span className="font-semibold">{fmt(s.amount_owed)}</span>
+                          <span className="font-bold">{fmt(s.amount_owed)}</span>
+                          {s.is_settled && <Check className="w-3 h-3 text-emerald-500 shrink-0" />}
+                        </>
+                      );
+
+                      if (isPayerOrDebtor) {
+                        return (
+                          <button
+                            key={s.user_id}
+                            type="button"
+                            disabled={loading}
+                            onClick={() => handleSettleSplit(exp.id, s.user_id, s.is_settled)}
+                            className={pillClass}
+                            title={s.is_settled ? "Mark as unpaid" : "Mark as paid/settled"}
+                          >
+                            {Content}
+                          </button>
+                        );
+                      }
+
+                      return (
+                        <div key={s.user_id} className={pillClass}>
+                          {Content}
                         </div>
                       );
                     })}

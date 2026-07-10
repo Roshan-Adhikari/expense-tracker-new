@@ -114,6 +114,11 @@ create policy "Users can view relevant splits" on public.expense_splits for sele
 create policy "Users can insert splits for their expenses" on public.expense_splits for insert with check (
   exists (select 1 from public.expenses where id = expense_splits.expense_id and paid_by = auth.uid())
 );
+create policy "Users can update relevant splits" on public.expense_splits for update using (
+  exists (select 1 from public.expenses where id = expense_splits.expense_id and paid_by = auth.uid())
+  or
+  user_id = auth.uid()
+);
 
 
 -- ==========================================

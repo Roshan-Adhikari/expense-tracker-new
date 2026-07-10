@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import {
   DollarSign, TrendingUp, ArrowUpRight, ArrowDownLeft,
-  Plus, Receipt, Users, ChevronRight, Zap,
+  Plus, Receipt, Users, ChevronRight, Zap, X,
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -90,6 +90,30 @@ export function DashboardClient({
 
 
 
+  const [budgets, setBudgets] = useState<Record<string, number>>({});
+  const [budgetModal, setBudgetModal] = useState(false);
+
+  // Load budgets from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("category_budgets");
+      if (stored) {
+        setBudgets(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error("Failed to load budgets", e);
+    }
+  }, []);
+
+  const handleSaveBudget = (category: string, limit: number) => {
+    const updated = { ...budgets, [category]: limit };
+    if (limit <= 0) {
+      delete updated[category];
+    }
+    setBudgets(updated);
+    localStorage.setItem("category_budgets", JSON.stringify(updated));
+  };
+
   const netBalance = totalOwedToMe - totalIOwe;
   const firstName = profile?.full_name?.split(" ")[0] || "there";
 
@@ -169,23 +193,62 @@ export function DashboardClient({
         </div>
       </div>
 
-      <div className="px-4 space-y-6 pb-4">
+      <div className="px-4 space-y-6 pb-4 pt-4">
+        {/* ── Budget Alerts ── */}
+        {(() => {
+          const exceeded = categories
+            .map(([cat, amount]) => ({ cat, amount, limit: budgets[cat] || 0 }))
+            .filter(c => c.limit > 0 && c.amount >= c.limit);
+          if (exceeded.length === 0) return null;
+          return (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+              className="rounded-3xl bg-red-500/10 border border-red-500/20 p-4 card-shadow flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
+                <TrendingUp className="w-5 h-5 text-red-500" />
+              </div>
+              <div>
+                <p className="font-bold text-sm text-red-500">Budget Limit Exceeded!</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  You have exceeded your limit in: {exceeded.map(c => `${c.cat} (${fmt(c.amount)} / ${fmt(c.limit)})`).join(", ")}.
+                </p>
+              </div>
+            </motion.div>
+          );
+        })()}
+
         {/* ── Spending by Category ── */}
         {categories.length > 0 && (
           <motion.section variants={stagger} initial="hidden" animate="show">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-bold text-base">Spending by Category</h2>
+              <button onClick={() => setBudgetModal(true)}
+                className="text-xs text-primary font-bold hover:underline active:scale-95 transition-all">
+                Configure Budgets
+              </button>
             </div>
             <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide"
               style={{ WebkitOverflowScrolling: "touch" }}>
-              {categories.map(([cat, amount]) => (
-                <motion.div key={cat} variants={fadeUp}
-                  className={`shrink-0 snap-start flex flex-col items-center gap-2 px-4 py-3.5 rounded-2xl border card-shadow ${CATEGORY_COLORS[cat] || CATEGORY_COLORS.General} min-w-[88px]`}>
-                  <span className="text-2xl">{CATEGORY_ICONS[cat] || "📦"}</span>
-                  <span className="text-xs font-semibold">{cat}</span>
-                  <span className="text-xs font-bold">{fmt(amount)}</span>
-                </motion.div>
-              ))}
+              {categories.map(([cat, amount]) => {
+                const limit = budgets[cat] || 0;
+                const percent = limit > 0 ? (amount / limit) * 100 : 0;
+                return (
+                  <motion.div key={cat} variants={fadeUp}
+                    className={`shrink-0 snap-start flex flex-col items-center gap-2 px-4 py-3.5 rounded-2xl border card-shadow ${CATEGORY_COLORS[cat] || CATEGORY_COLORS.General} min-w-[105px]`}>
+                    <span className="text-2xl">{CATEGORY_ICONS[cat] || "📦"}</span>
+                    <span className="text-xs font-semibold">{cat}</span>
+                    <span className="text-xs font-bold">{fmt(amount)}</span>
+                    {limit > 0 && (
+                      <div className="w-full mt-1 flex flex-col items-center gap-1">
+                        <div className="w-full bg-black/10 dark:bg-white/10 rounded-full h-1 overflow-hidden">
+                          <div className={`h-full rounded-full ${percent >= 100 ? "bg-red-500" : percent >= 80 ? "bg-amber-500" : "bg-emerald-500"}`}
+                            style={{ width: `${Math.min(percent, 100)}%` }} />
+                        </div>
+                        <span className="text-[8px] opacity-75 font-semibold">Limit: {fmt(limit)}</span>
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })}
             </div>
 
             {/* Recharts Pie Chart */}
@@ -292,6 +355,61 @@ export function DashboardClient({
           </motion.div>
         )}
       </div>
+
+      {/* Budget Configuration Modal */}
+      <AnimatePresence>
+        {budgetModal && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={() => setBudgetModal(false)} />
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="fixed bottom-0 left-0 right-0 z-50 bottom-sheet bg-card pb-safe max-h-[85vh] overflow-y-auto">
+              <div className="p-5">
+                <div className="flex items-center justify-between mb-4 border-b border-border pb-3">
+                  <div>
+                    <h3 className="font-bold text-base">Configure Budgets</h3>
+                    <p className="text-xs text-muted-foreground">Set spending limits for your categories</p>
+                  </div>
+                  <button onClick={() => setBudgetModal(false)}
+                    className="w-8 h-8 rounded-full bg-muted flex items-center justify-center active:scale-90 transition-transform">
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </div>
+
+                <div className="space-y-4 py-2">
+                  {Object.keys(CATEGORY_ICONS).map((cat) => {
+                    const currentVal = budgets[cat] || "";
+                    return (
+                      <div key={cat} className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xl">{CATEGORY_ICONS[cat]}</span>
+                          <span className="text-xs font-semibold truncate">{cat}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] text-muted-foreground font-semibold">₹</span>
+                          <input
+                            type="number"
+                            placeholder="No Limit"
+                            value={currentVal}
+                            onChange={(e) => handleSaveBudget(cat, Number(e.target.value))}
+                            className="w-24 px-2 py-1 text-xs rounded-xl bg-muted border border-border/50 text-right focus:outline-none focus:border-primary font-bold"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <button onClick={() => setBudgetModal(false)}
+                  className="w-full mt-6 py-3 rounded-2xl bg-primary text-white text-xs font-bold fab-glow active:scale-[0.98] transition-transform">
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
