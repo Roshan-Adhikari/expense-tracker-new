@@ -645,47 +645,63 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                     </div>
                   </div>
                   {/* Split breakdown */}
-                  <div className="flex gap-1.5 mt-3 flex-wrap">
-                    {splits.map(s => {
-                      const mem = activeMembers.find(m => m.user_id === s.user_id);
-                      const isPayerOrDebtor = exp.paid_by === userId || s.user_id === userId;
-                      const pillClass = `flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs transition-all ${
-                        s.is_settled 
-                          ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 opacity-60" 
-                          : "bg-muted border border-border text-foreground hover:bg-muted/80"
-                      } ${isPayerOrDebtor ? "cursor-pointer" : "cursor-default"}`;
-
-                      const Content = (
-                        <>
-                          <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[7px] font-bold text-white shrink-0 ${colorFor(s.user_id)}`}>
-                            {mem?.profiles ? initials(mem.profiles.full_name, mem.profiles.email) : "?"}
-                          </div>
-                          <span className="font-bold">{fmt(s.amount_owed)}</span>
-                          {s.is_settled && <Check className="w-3 h-3 text-emerald-500 shrink-0" />}
-                        </>
-                      );
-
-                      if (isPayerOrDebtor) {
+                  <div className="mt-4 border-t border-border pt-3">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Split Details</p>
+                    <div className="space-y-2">
+                      {splits.map(s => {
+                        const mem = activeMembers.find(m => m.user_id === s.user_id);
+                        const isPayerOrDebtor = exp.paid_by === userId || s.user_id === userId;
+                        const isMe = s.user_id === userId;
+                        const isPayer = exp.paid_by === s.user_id;
+                        
                         return (
-                          <button
-                            key={s.user_id}
-                            type="button"
-                            disabled={loading}
-                            onClick={() => handleSettleSplit(exp.id, s.user_id, s.is_settled)}
-                            className={pillClass}
-                            title={s.is_settled ? "Mark as unpaid" : "Mark as paid/settled"}
-                          >
-                            {Content}
-                          </button>
+                          <div key={s.user_id} className="flex items-center justify-between bg-muted/30 p-2.5 rounded-xl border border-border/50">
+                            <div className="flex items-center gap-2.5">
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${colorFor(s.user_id)}`}>
+                                {mem?.profiles ? initials(mem.profiles.full_name, mem.profiles.email) : "?"}
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold">{isMe ? "You" : mem?.profiles?.full_name || "Someone"}</p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {isPayer ? `Paid total ${fmt(exp.amount)}` : `Owes ${fmt(s.amount_owed)}`}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                              {!isPayer && (
+                                <>
+                                  {s.is_settled ? (
+                                    <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-lg">
+                                      <Check className="w-3 h-3" /> Settled
+                                    </span>
+                                  ) : (
+                                    <span className="flex items-center gap-1 text-[10px] font-bold text-orange-500 bg-orange-500/10 px-2 py-1 rounded-lg">
+                                      Unpaid
+                                    </span>
+                                  )}
+                                  
+                                  {isPayerOrDebtor && (
+                                    <button
+                                      type="button"
+                                      disabled={loading}
+                                      onClick={() => handleSettleSplit(exp.id, s.user_id, s.is_settled)}
+                                      className={`text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all ${
+                                        s.is_settled
+                                          ? "bg-muted text-muted-foreground hover:bg-muted/80"
+                                          : "bg-primary text-white shadow-sm hover:bg-primary/90"
+                                      }`}
+                                    >
+                                      {s.is_settled ? "Undo" : "Mark Paid"}
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
                         );
-                      }
-
-                      return (
-                        <div key={s.user_id} className={pillClass}>
-                          {Content}
-                        </div>
-                      );
-                    })}
+                      })}
+                    </div>
                   </div>
                 </div>
               );
