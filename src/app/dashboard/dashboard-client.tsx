@@ -7,8 +7,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
+import { CATEGORY_ICONS, CATEGORY_COLORS, CHART_COLORS } from "@/lib/constants";
+import { fmt, relDate } from "@/lib/format";
 
 interface Expense {
   id: string;
@@ -34,45 +35,6 @@ interface DashboardClientProps {
   totalIOwe: number;
 }
 
-const CATEGORY_ICONS: Record<string, string> = {
-  Food: "🍔", Transport: "🚗", Entertainment: "🎮",
-  Shopping: "🛍️", Health: "💊", Housing: "🏠",
-  Travel: "✈️", Education: "📚", Utilities: "⚡", General: "📦",
-};
-
-const CATEGORY_COLORS: Record<string, string> = {
-  Food: "bg-orange-500/15 text-orange-500 border-orange-500/20",
-  Transport: "bg-blue-500/15 text-blue-500 border-blue-500/20",
-  Entertainment: "bg-purple-500/15 text-purple-500 border-purple-500/20",
-  Shopping: "bg-pink-500/15 text-pink-500 border-pink-500/20",
-  Health: "bg-green-500/15 text-green-500 border-green-500/20",
-  Housing: "bg-yellow-500/15 text-yellow-500 border-yellow-500/20",
-  Travel: "bg-sky-500/15 text-sky-500 border-sky-500/20",
-  General: "bg-gray-500/15 text-gray-400 border-gray-500/20",
-};
-
-const CHART_COLORS: Record<string, string> = {
-  Food: "#f97316",
-  Transport: "#3b82f6",
-  Entertainment: "#a855f7",
-  Shopping: "#ec4899",
-  Health: "#22c55e",
-  Housing: "#eab308",
-  Travel: "#0ea5e9",
-  General: "#6b7280",
-};
-
-function fmt(n: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n);
-}
-
-function relDate(d: string) {
-  const days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
 const stagger = {
   hidden: {},
   show: { transition: { staggerChildren: 0.07 } },
@@ -86,8 +48,6 @@ export function DashboardClient({
   profile, personalExpenses, groupExpenses,
   totalPersonal, totalOwedToMe, totalIOwe,
 }: DashboardClientProps) {
-  const router = useRouter();
-
 
 
   const [budgets, setBudgets] = useState<Record<string, number>>({});

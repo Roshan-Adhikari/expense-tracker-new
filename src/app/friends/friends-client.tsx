@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { UserPlus, Users, Mail, Trash2, User as UserIcon, Search, X, ChevronRight } from "lucide-react";
+import { UserPlus, Users, Mail, Trash2, Search, X } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
+import { Sheet } from "@/components/sheet";
+import { colorFor, initials } from "@/lib/format";
 
 interface FriendProfile {
   id: string;
@@ -81,15 +83,6 @@ export function FriendsClient({ userId, friends: initialFriends }: { userId: str
     setDeleteConfirm(null);
     router.refresh();
   };
-
-  // Initials helper
-  const initials = (name: string | null, email: string) => {
-    if (name) return name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
-    return email[0].toUpperCase();
-  };
-
-  const bgColors = ["bg-violet-500", "bg-blue-500", "bg-pink-500", "bg-emerald-500", "bg-orange-500", "bg-sky-500"];
-  const colorFor = (id: string) => bgColors[id.charCodeAt(0) % bgColors.length];
 
   return (
     <div className="min-h-full bg-background">
@@ -190,28 +183,7 @@ export function FriendsClient({ userId, friends: initialFriends }: { userId: str
         <UserPlus className="w-6 h-6" />
       </button>
 
-      {/* Bottom Sheet */}
-      <AnimatePresence>
-        {sheetOpen && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={() => setSheetOpen(false)} />
-            <motion.div
-              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-              transition={{ duration: 0.15, ease: "easeOut" }}
-              className="fixed bottom-0 left-0 right-0 z-50 bottom-sheet bg-card pb-safe"
-            >
-              <div className="flex justify-center pt-3 pb-1">
-                <div className="w-10 h-1 rounded-full bg-border" />
-              </div>
-              <div className="px-5 pb-6">
-                <div className="flex items-center justify-between mb-5 mt-2">
-                  <h3 className="text-lg font-bold">Add a Friend</h3>
-                  <button onClick={() => setSheetOpen(false)} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                    <X className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                </div>
-
+      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Add a Friend">
                 <p className="text-sm text-muted-foreground mb-4">Enter their email address. If they're not on Expense Tracker yet, we'll send an invite.</p>
 
                 <form onSubmit={handleAddFriend} className="space-y-4">
@@ -234,11 +206,7 @@ export function FriendsClient({ userId, friends: initialFriends }: { userId: str
                     {loading ? "Searching…" : "Add Friend"}
                   </button>
                 </form>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      </Sheet>
     </div>
   );
 }

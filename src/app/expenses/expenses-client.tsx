@@ -2,10 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Pencil, Trash2, Receipt, Search, X } from "lucide-react";
+import { Plus, Trash2, Receipt, Search, X } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
-import { Select } from "@/components/ui";
 import { useRouter } from "next/navigation";
+import { Sheet } from "@/components/sheet";
+import { CATEGORIES, CATEGORY_ICONS, CATEGORY_COLORS } from "@/lib/constants";
+import { fmt, relDate } from "@/lib/format";
 
 interface Expense {
   id: string;
@@ -13,41 +15,6 @@ interface Expense {
   amount: number;
   category: string;
   date: string;
-}
-
-const CATEGORIES = [
-  "Food", "Transport", "Entertainment", "Shopping",
-  "Health", "Housing", "Utilities", "Education", "Travel", "General"
-];
-
-const CATEGORY_ICONS: Record<string, string> = {
-  Food: "🍔", Transport: "🚗", Entertainment: "🎮", Shopping: "🛍️",
-  Health: "💊", Housing: "🏠", Utilities: "⚡", Education: "📚",
-  Travel: "✈️", General: "📦",
-};
-
-const CATEGORY_COLORS: Record<string, string> = {
-  Food: "bg-orange-500/15 text-orange-500",
-  Transport: "bg-blue-500/15 text-blue-500",
-  Entertainment: "bg-purple-500/15 text-purple-500",
-  Shopping: "bg-pink-500/15 text-pink-500",
-  Health: "bg-green-500/15 text-green-500",
-  Housing: "bg-yellow-500/15 text-yellow-500",
-  Utilities: "bg-cyan-500/15 text-cyan-500",
-  Education: "bg-indigo-500/15 text-indigo-500",
-  Travel: "bg-sky-500/15 text-sky-500",
-  General: "bg-gray-500/15 text-gray-400",
-};
-
-function fmt(n: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(n);
-}
-
-function relDate(d: string) {
-  const days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 interface FormState {
@@ -114,7 +81,6 @@ export function ExpensesClient({ expenses: initial, userId }: { expenses: Expens
 
     if (editingId) {
       const { data, error: err } = await supabase.from("expenses").update(payload).eq("id", editingId).select().single();
-      console.log("UPDATE result:", { data, err });
       if (err) {
         setError("Error: " + err.message + " (code: " + err.code + ")");
         setLoading(false);
@@ -122,11 +88,7 @@ export function ExpensesClient({ expenses: initial, userId }: { expenses: Expens
       }
       if (data) setExpenses(prev => prev.map(ex => ex.id === editingId ? data : ex));
     } else {
-      // Debug: check auth session first
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log("Session before insert:", session?.user?.id, "userId prop:", userId);
       const { data, error: err } = await supabase.from("expenses").insert(payload).select().single();
-      console.log("INSERT result:", { data, err, payload });
       if (err) {
         setError("Error: " + err.message + " (code: " + err.code + ")");
         setLoading(false);
@@ -264,34 +226,7 @@ export function ExpensesClient({ expenses: initial, userId }: { expenses: Expens
         <Plus className="w-6 h-6" />
       </button>
 
-      {/* Bottom Sheet */}
-      <AnimatePresence>
-        {sheetOpen && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
-              onClick={() => setSheetOpen(false)} />
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ duration: 0.15, ease: "easeOut" }}
-              className="fixed bottom-0 left-0 right-0 z-50 bottom-sheet bg-card pb-safe"
-            >
-              {/* Drag handle */}
-              <div className="flex justify-center pt-3 pb-1">
-                <div className="w-10 h-1 rounded-full bg-border" />
-              </div>
-
-              <div className="px-5 pb-6">
-                <div className="flex items-center justify-between mb-5 mt-2">
-                  <h3 className="text-lg font-bold">{editingId ? "Edit Expense" : "New Expense"}</h3>
-                  <button onClick={() => setSheetOpen(false)}
-                    className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                    <X className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                </div>
-
+      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title={editingId ? "Edit Expense" : "New Expense"}>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {/* Amount (big input) */}
                   <div className="rounded-2xl border border-border bg-background px-4 py-3 focus-within:ring-2 focus-within:ring-primary/30 transition-all">
@@ -353,11 +288,7 @@ export function ExpensesClient({ expenses: initial, userId }: { expenses: Expens
                     {loading ? "Saving…" : editingId ? "Update Expense" : "Add Expense"}
                   </button>
                 </form>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      </Sheet>
     </div>
   );
 }

@@ -1,11 +1,15 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Users, Receipt, ChevronRight, Check, X, DollarSign, User as UserIcon, Trash2, Pencil, Activity } from "lucide-react";
+import { motion } from "framer-motion";
+import { Plus, Users, Receipt, ChevronRight, Check, Trash2, Pencil, Activity } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis } from "recharts";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
+import { Sheet } from "@/components/sheet";
+import { CATEGORY_ICONS, CHART_COLORS } from "@/lib/constants";
+import { fmt, colorFor, initials } from "@/lib/format";
+import { netBalanceForUser } from "@/lib/balances";
 
 interface Friend {
   friend_id: string;
@@ -21,30 +25,6 @@ interface GroupExpense {
 }
 interface ExpenseSplit { expense_id: string; user_id: string; amount_owed: number; is_settled: boolean; }
 interface ActivityLog { id: string; group_id: string; user_id: string; action: string; details: any; created_at: string; profiles: Profile | null; }
-
-const CATEGORY_ICONS: Record<string, string> = {
-  Food:"🍔", Transport:"🚗", Entertainment:"🎮", Shopping:"🛍️",
-  Health:"💊", Housing:"🏠", Travel:"✈️", Utilities:"⚡", General:"📦",
-};
-
-const bgColors = ["bg-violet-500","bg-blue-500","bg-pink-500","bg-emerald-500","bg-orange-500","bg-sky-500"];
-const colorFor = (id: string) => bgColors[id.charCodeAt(0) % bgColors.length];
-const initials = (name: string | null, email: string) =>
-  name ? name.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase() : email[0].toUpperCase();
-function fmt(n: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(n);
-}
-
-const CHART_COLORS: Record<string, string> = {
-  Food: "#f97316",
-  Transport: "#3b82f6",
-  Entertainment: "#a855f7",
-  Shopping: "#ec4899",
-  Health: "#22c55e",
-  Housing: "#eab308",
-  Travel: "#0ea5e9",
-  General: "#6b7280",
-};
 
 interface Props {
   userId: string; groups: Group[]; allMembers: GroupMember[];
@@ -391,20 +371,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
         </button>
 
         {/* Create Group Sheet */}
-        <AnimatePresence>
-          {groupSheet && (
-            <>
-              <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
-                className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={() => setGroupSheet(false)} />
-              <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}}
-                transition={{ duration: 0.15, ease: "easeOut" }}
-                className="fixed bottom-0 left-0 right-0 z-50 bottom-sheet bg-card pb-safe max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-border" /></div>
-                <div className="px-5 pb-6">
-                  <div className="flex items-center justify-between mb-5 mt-2">
-                    <h3 className="text-lg font-bold">Create Group</h3>
-                    <button onClick={() => setGroupSheet(false)} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"><X className="w-4 h-4 text-muted-foreground" /></button>
-                  </div>
+        <Sheet open={groupSheet} onClose={() => setGroupSheet(false)} title="Create Group" className="max-h-[90vh]">
                   <form onSubmit={handleCreateGroup} className="space-y-4">
                     <input id="group-name-input" placeholder="Group name (e.g. Roommates 🏠)"
                       value={gName} onChange={e => setGName(e.target.value)}
@@ -450,11 +417,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                     </button>
                     {errorMsg && <p className="text-sm text-destructive mt-3 text-center">{errorMsg}</p>}
                   </form>
-                </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
+        </Sheet>
       </div>
     );
   }
@@ -464,10 +427,11 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
     .filter(s => s.user_id === userId && activeExpenses.some(e => e.id === s.expense_id))
     .reduce((sum, s) => sum + s.amount_owed, 0);
   const groupTotal = activeExpenses.reduce((s, e) => s + e.amount, 0);
-  const myPaid = activeExpenses
-    .filter(e => e.paid_by === userId)
-    .reduce((sum, e) => sum + e.amount, 0);
-  const netGroupBalance = myPaid - myShare;
+  const netGroupBalance = netBalanceForUser(
+    userId,
+    activeExpenses.map(e => ({ id: e.id, amount: e.amount, paid_by: e.paid_by, group_id: e.group_id })),
+    localSplits
+  );
 
   const byCategory = activeExpenses.reduce<Record<string, number>>((acc, e) => {
     acc[e.category] = (acc[e.category] || 0) + e.amount;
@@ -761,20 +725,11 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
       </div>
 
       {/* Add Expense Sheet */}
-      <AnimatePresence>
-        {expenseSheet && (
-          <>
-            <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={() => setExpenseSheet(false)} />
-            <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}}
-              transition={{ duration: 0.15, ease: "easeOut" }}
-              className="fixed bottom-0 left-0 right-0 z-50 bottom-sheet bg-card pb-safe max-h-[92vh] overflow-y-auto">
-              <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-border" /></div>
-              <div className="px-5 pb-6">
-                <div className="flex items-center justify-between mb-5 mt-2">
-                  <h3 className="text-lg font-bold">{editExpenseId ? "Edit Expense" : "Add Group Expense"}</h3>
-                  <button type="button" onClick={() => setExpenseSheet(false)} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"><X className="w-4 h-4 text-muted-foreground" /></button>
-                </div>
+      <Sheet
+        open={expenseSheet}
+        onClose={() => setExpenseSheet(false)}
+        title={editExpenseId ? "Edit Expense" : "Add Group Expense"}
+      >
                 <form onSubmit={handleSaveExpense} className="space-y-4">
                   {/* Amount */}
                   <div className="rounded-2xl border border-border bg-background px-4 py-3 focus-within:ring-2 focus-within:ring-primary/30 transition-all">
@@ -874,11 +829,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                     {loading ? "Adding…" : "Add & Notify Members"}
                   </button>
                 </form>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      </Sheet>
     </div>
   );
 }
