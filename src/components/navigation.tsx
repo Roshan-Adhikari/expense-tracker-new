@@ -114,7 +114,7 @@ export function MobileHeader() {
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <UserMenu />
+          <UserMenu direction="down" />
         </div>
       </div>
     </header>

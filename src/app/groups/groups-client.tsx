@@ -245,7 +245,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
     let expenseId = editExpenseId;
 
     if (editExpenseId) {
-      const { data, error } = await supabase.from("expenses").update(expenseData).eq("id", editExpenseId).select("id, description, amount, category, date, group_id, paid_by, profiles(full_name)").single();
+      const { data, error } = await supabase.from("expenses").update(expenseData).eq("id", editExpenseId).select("id, description, amount, category, date, created_at, group_id, paid_by, profiles(full_name)").single();
       if (error || !data) { alert("Failed to update: " + error?.message); setLoading(false); return; }
       
       const newExpense = { ...data, profiles: Array.isArray(data.profiles) ? data.profiles[0] : data.profiles };
@@ -255,7 +255,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
       await supabase.from("expense_splits").delete().eq("expense_id", editExpenseId);
       logActivity("expense_edited", { description: eDesc, amount: amountNum });
     } else {
-      const { data, error } = await supabase.from("expenses").insert(expenseData).select("id, description, amount, category, date, group_id, paid_by, profiles(full_name)").single();
+      const { data, error } = await supabase.from("expenses").insert(expenseData).select("id, description, amount, category, date, created_at, group_id, paid_by, profiles(full_name)").single();
       if (error || !data) { alert("Failed to add expense: " + (error?.message || "Unknown error")); setLoading(false); return; }
       expenseId = data.id;
       const newExpense = { ...data, profiles: Array.isArray(data.profiles) ? data.profiles[0] : data.profiles };
@@ -467,13 +467,17 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
     localSplits
   );
 
-  const byCategory = activeExpenses.reduce<Record<string, number>>((acc, e) => {
-    acc[e.category] = (acc[e.category] || 0) + e.amount;
+  const byMember = activeExpenses.reduce<Record<string, number>>((acc, e) => {
+    const mem = activeMembers.find(m => m.user_id === e.paid_by);
+    const name = e.paid_by === userId ? "You" : (mem?.profiles?.full_name || "Someone");
+    acc[name] = (acc[name] || 0) + e.amount;
     return acc;
   }, {});
-  const groupChartData = Object.entries(byCategory)
+  const groupChartData = Object.entries(byMember)
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
+
+  const MEMBER_CHART_COLORS = ["#7C3AED", "#10B981", "#3B82F6", "#F59E0B", "#EF4444", "#EC4899", "#8B5CF6", "#06B6D4"];
 
   return (
     <div className="min-h-full bg-background">
@@ -557,7 +561,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                       stroke="none"
                     >
                       {groupChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={CHART_COLORS[entry.name] || "#6b7280"} />
+                        <Cell key={`cell-${index}`} fill={MEMBER_CHART_COLORS[index % MEMBER_CHART_COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip formatter={(value) => fmt(Number(value))} contentStyle={{ borderRadius: '12px', border: 'none', backgroundColor: 'var(--card)', color: 'var(--foreground)', fontSize: '10px' }} />
@@ -570,7 +574,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                     <Tooltip formatter={(value) => fmt(Number(value))} contentStyle={{ borderRadius: '12px', border: 'none', backgroundColor: 'var(--card)', color: 'var(--foreground)', fontSize: '10px' }} />
                     <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                       {groupChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={CHART_COLORS[entry.name] || "#6b7280"} />
+                        <Cell key={`cell-${index}`} fill={MEMBER_CHART_COLORS[index % MEMBER_CHART_COLORS.length]} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -658,63 +662,41 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                     </div>
                   </div>
                   {/* Split breakdown */}
-                  <div className="mt-4 border-t border-border pt-3">
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Split Details</p>
-                    <div className="space-y-2">
-                      {splits.map(s => {
-                        const mem = activeMembers.find(m => m.user_id === s.user_id);
-                        const isPayerOrDebtor = exp.paid_by === userId || s.user_id === userId;
-                        const isMe = s.user_id === userId;
-                        const isPayer = exp.paid_by === s.user_id;
-                        
-                        return (
-                          <div key={s.user_id} className="flex items-center justify-between bg-muted/30 p-2.5 rounded-xl border border-border/50">
-                            <div className="flex items-center gap-2.5">
-                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${colorFor(s.user_id)}`}>
-                                {mem?.profiles ? initials(mem.profiles.full_name, mem.profiles.email) : "?"}
-                              </div>
-                              <div>
-                                <p className="text-xs font-semibold">{isMe ? "You" : mem?.profiles?.full_name || "Someone"}</p>
-                                <p className="text-[10px] text-muted-foreground">
-                                  {isPayer ? `Paid total ${fmt(exp.amount)}` : `Owes ${fmt(s.amount_owed)}`}
-                                </p>
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-2">
-                              {!isPayer && (
-                                <>
-                                  {s.is_settled ? (
-                                    <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-lg">
-                                      <Check className="w-3 h-3" /> Settled
-                                    </span>
-                                  ) : (
-                                    <span className="flex items-center gap-1 text-[10px] font-bold text-orange-500 bg-orange-500/10 px-2 py-1 rounded-lg">
-                                      Unpaid
-                                    </span>
-                                  )}
-                                  
-                                  {isPayerOrDebtor && (
-                                    <button
-                                      type="button"
-                                      disabled={loading}
-                                      onClick={() => handleSettleSplit(exp.id, s.user_id, s.is_settled)}
-                                      className={`text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all ${
-                                        s.is_settled
-                                          ? "bg-muted text-muted-foreground hover:bg-muted/80"
-                                          : "bg-primary text-white shadow-sm hover:bg-primary/90"
-                                      }`}
-                                    >
-                                      {s.is_settled ? "Undo" : "Mark Paid"}
-                                    </button>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                  <div className="mt-3 pt-3 border-t border-border/40 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] text-muted-foreground">
+                    <span className="font-bold text-[9px] uppercase tracking-wider text-muted-foreground/60 mr-1">Splits:</span>
+                    {splits.map(s => {
+                      const mem = activeMembers.find(m => m.user_id === s.user_id);
+                      const isPayerOrDebtor = exp.paid_by === userId || s.user_id === userId;
+                      const isMe = s.user_id === userId;
+                      const name = isMe ? "You" : mem?.profiles?.full_name?.split(" ")[0] || "Someone";
+                      const isPayer = exp.paid_by === s.user_id;
+                      
+                      return (
+                        <div key={s.user_id} className="flex items-center gap-1.5 bg-muted/20 px-2 py-0.5 rounded-lg border border-border/40 shrink-0">
+                          <span>
+                            <span className="font-semibold text-foreground">{name}</span>
+                            {isPayer ? ` paid total ${fmt(exp.amount)}` : ` owes ${fmt(s.amount_owed)}`}
+                          </span>
+                          {!isPayer && (
+                            <span className={`text-[9px] font-bold px-1 rounded ${
+                              s.is_settled ? "text-emerald-500 bg-emerald-500/10" : "text-orange-500 bg-orange-500/10"
+                            }`}>
+                              {s.is_settled ? "Paid" : "Unpaid"}
+                            </span>
+                          )}
+                          {!isPayer && isPayerOrDebtor && (
+                            <button
+                              type="button"
+                              disabled={loading}
+                              onClick={() => handleSettleSplit(exp.id, s.user_id, s.is_settled)}
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary text-white hover:bg-primary/95 transition-all active:scale-95 ml-1 shrink-0"
+                            >
+                              {s.is_settled ? "Undo" : "Mark Paid"}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );

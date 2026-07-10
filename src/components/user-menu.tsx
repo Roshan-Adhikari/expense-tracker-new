@@ -14,7 +14,7 @@ interface Profile {
   email: string;
 }
 
-export function UserMenu() {
+export function UserMenu({ direction = "up" }: { direction?: "up" | "down" }) {
   const supabase = createClient();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -84,7 +84,7 @@ export function UserMenu() {
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 mb-2 w-48 glass border border-white/10 rounded-xl overflow-hidden shadow-xl z-50">
+        <div className={`absolute ${direction === "up" ? "bottom-full mb-2" : "top-full mt-2"} right-0 md:left-0 w-48 glass border border-white/10 rounded-xl overflow-hidden shadow-xl z-50`}>
           <div className="p-3 border-b border-white/5">
             <p className="text-sm font-medium truncate">{name}</p>
             <p className="text-xs text-muted-foreground truncate">{user.email}</p>
