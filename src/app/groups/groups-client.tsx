@@ -787,6 +787,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                         <button key={m.user_id} type="button" onClick={() => setEPaidBy(m.user_id)}
                           className={`shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition-all ${ePaidBy === m.user_id ? "bg-card text-foreground card-shadow" : "text-muted-foreground"}`}>
                           {m.user_id === userId ? "You" : m.profiles?.full_name?.split(" ")[0] || "Member"}
+                          {ePaidBy === m.user_id && " paid"}
                         </button>
                       ))}
                     </div>
@@ -850,7 +851,7 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                           {member.profiles ? initials(member.profiles.full_name, member.profiles.email) : "?"}
                         </div>
                         <p className="flex-1 text-sm font-semibold">
-                          {member.user_id === userId ? "You" : member.profiles?.full_name?.split(" ")[0] || "Member"}
+                          {member.user_id === userId ? "You owe" : `${member.profiles?.full_name?.split(" ")[0] || "Member"} owes`}
                         </p>
                         {splitType === "equal" ? (
                           <p className="text-sm font-bold text-primary">
