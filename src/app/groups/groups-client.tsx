@@ -675,14 +675,14 @@ export function GroupsClient({ userId, groups: initial, allMembers, allExpenses,
                             <span className="font-semibold text-foreground">{name}</span>
                             {isPayer ? ` paid total ${fmt(exp.amount)}` : ` ${name === "You" ? "owe" : "owes"} ${fmt(s.amount_owed)}`}
                           </span>
-                          {!isPayer && s.amount_owed > 0 && (
+                          {!isPayer && (
                             <span className={`text-[9px] font-bold px-1 rounded ${
                               s.is_settled ? "text-emerald-500 bg-emerald-500/10" : "text-orange-500 bg-orange-500/10"
                             }`}>
                               {s.is_settled ? "Paid" : "Unpaid"}
                             </span>
                           )}
-                          {!isPayer && s.amount_owed > 0 && isPayerOrDebtor && (
+                          {!isPayer && isPayerOrDebtor && (
                             <button
                               type="button"
                               disabled={loading}
